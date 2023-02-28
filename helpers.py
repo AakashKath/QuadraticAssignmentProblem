@@ -1,24 +1,50 @@
+import math
 import matplotlib.pyplot as plt
 import networkx as nx
 
 
-def draw_graph(graph, with_labels=False):
-    pos = nx.spring_layout(graph)
-    if with_labels:
-        node_labels = {n: str(n) + ': ' + str(graph.nodes[n].get('weight', -1)) for n in
-                                               graph.nodes}
-        edge_labels = nx.get_edge_attributes(graph, 'weight')
-        nx.draw(graph, pos, with_labels=True, labels=node_labels)
-        nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels)
-    else:
-        nx.draw(graph, pos)
-    plt.show()
+class DrawGraphs:
+
+    def __init__(self) -> None:
+        self.figure_number = 0
+
+    def draw(self):
+        plt.show()
+        self.figure_number = 0
+
+    def add_figure(self):
+        self.figure_number += 1
+        plt.figure(self.figure_number)
+
+    def add_graph(self, graph, with_labels=False):
+        self.add_figure()
+        pos = nx.spring_layout(graph)
+        if with_labels:
+            node_labels = dict()
+            node_data = dict(graph.nodes(data=True))
+            for node, values in node_data.items():
+                node_labels.update({
+                    node: f"{str(node)}: {values.get('capacity', 0)}, {values.get('weight', math.inf)}, {values.get('demand', 0)}"
+                })
+            edge_labels = dict()
+            edge_data = graph.edges(data=True)
+            for u, v, values in edge_data:
+                edge_labels.update({
+                    (u, v): f"{values.get('capacity', 0)}, {values.get('weight', math.inf)}"
+                })
+            nx.draw(graph, pos, with_labels=True, labels=node_labels)
+            nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels)
+        else:
+            nx.draw(graph, pos)
 
 def from_min_cost_flow(flowDict):
     G = nx.DiGraph()
+    total_cost = 0
     for node in flowDict.keys():
         G.add_node(node)
     for u, values in flowDict.items():
         for v, w in values.items():
-            G.add_edge(u, v, weight=w)
-    return G
+            if w != 0:
+                G.add_edge(u, v, weight=w)
+                total_cost += w
+    return G, total_cost
