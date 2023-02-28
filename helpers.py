@@ -12,12 +12,16 @@ class DrawGraphs:
         plt.show()
         self.figure_number = 0
 
-    def add_figure(self):
+    def __add_figure_details(self, title):
         self.figure_number += 1
         plt.figure(self.figure_number)
+        if title:
+            plt.title(title)
+        else:
+            plt.title(f"Figure {self.figure_number}")
 
-    def add_graph(self, graph, with_labels=False):
-        self.add_figure()
+    def add_graph(self, graph, with_labels=False, title=None):
+        self.__add_figure_details(title)
         pos = nx.spring_layout(graph)
         if with_labels:
             node_labels = dict()

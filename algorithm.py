@@ -29,8 +29,9 @@ def generate_network_flow(graph, source, demand):
 def min_congestion_star_workload(demand):
     drawing = DrawGraphs()
     substrate_graph = generate_random_substrate_graph(4, 0.2)
-    drawing.add_graph(substrate_graph, True)
+    drawing.add_graph(substrate_graph, with_labels=True, title="Substrate Graph")
     min_cost = math.inf
+    min_graph = None
     for source in substrate_graph.nodes():
         network_flow_graph = generate_network_flow(substrate_graph, source, -demand)
         network_flow_graph = add_sink_node(network_flow_graph, substrate_graph, source, demand)
@@ -42,7 +43,8 @@ def min_congestion_star_workload(demand):
                 min_graph = flow_graph
         except nx.exception.NetworkXUnfeasible:
             print("No path found.")
-    drawing.add_graph(min_graph, True)
+    if min_graph:
+        drawing.add_graph(min_graph, with_labels=True, title="Min Cost Flow")
     drawing.draw()
 
 min_congestion_star_workload(1)
