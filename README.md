@@ -4,10 +4,10 @@ Implementation of Quadratic Assignment Problem using Minimum Congestion Algorith
 ```
 Currently the code only supports random graph with no user input.
 Substrate Graph- Random connected graph with random capacity and weights/costs.
-Workload- Star graph with random number of leaf nodes, random uniform edge demand and node demand of 1.
+Workload Graph- Star graph with random number of leaf nodes, random uniform edge demand and node demand of 1.
 ```
 
 ## How to use:
-1. create a pytohn [virtual environment](https://docs.python.org/3/library/venv.html)
+1. Create a pytohn [virtual environment](https://docs.python.org/3/library/venv.html)
 2. Run `pip install -r requirments.txt`
 3. Run `python algorithm.py`
