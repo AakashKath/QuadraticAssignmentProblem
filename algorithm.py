@@ -9,6 +9,8 @@ from helpers import DrawGraphs, from_min_cost_flow
 from substrate import generate_random_graph, generate_internet_topology_graph
 from workload import generate_workload
 
+ALLOWED_TOPOLOGIES = ["internet", "clos", "bcube", "xpander", "random"]
+
 def add_sink_node(flow_graph, substrate_graph, source, node_demand):
     flow_graph.add_node("sink", demand=node_demand)
     substrate_nodes = dict(substrate_graph.nodes(data=True))
@@ -74,15 +76,23 @@ def min_congestion_star_workload(topology):
         for file_name in internet_toplogy_files[:1]:
             substrate_graph = generate_internet_topology_graph(join(dir_path, file_name))
             min_congestion(substrate_graph, flow, edge_demand)
-    else:
+    elif topology == "clos":
+        pass
+    elif topology == "bcube":
+        pass
+    elif topology == "xpander":
+        pass
+    elif topology == "random":
         while True:
             substrate_graph = generate_random_graph()
             if min_congestion(substrate_graph, flow, edge_demand):
                 return
+    else:
+        print(f"We don't support {topology} right now.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Minimum Congestion algorithm", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-t", "--topology", help="Topology")
+    parser.add_argument("-t", "--topology", choices=ALLOWED_TOPOLOGIES, help="Topology", type=str.lower)
     args = parser.parse_args()
     config = vars(args)
     min_congestion_star_workload(config.get("topology", None))

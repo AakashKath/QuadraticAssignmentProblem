@@ -84,7 +84,7 @@ class DrawGraphs:
         updated_details = [(u, v, values) for u, v, values in flow_graph.edges(data=True)]
         frames = len(nx.get_edge_attributes(flow_graph, "weight"))
         self.ani = animation.FuncAnimation(self.figure, partial(self.__add_flow, updated_details), frames=frames, 
-                                           interval=2000, repeat=False, init_func=self.__init_animation)
+                                           interval=1000, repeat=False, init_func=self.__init_animation)
 
 def from_min_cost_flow(flowDict):
     G = nx.DiGraph()

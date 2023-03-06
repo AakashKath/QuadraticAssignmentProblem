@@ -41,3 +41,12 @@ def generate_internet_topology_graph(file_path):
             graph.nodes().get(v).update({"capacity": raw_speed, "weight": raw_speed})
         return graph
     print("Only gml/graphml files allowed in Internet Topology.")
+
+def generate_clos_topology_graph():
+    pass
+
+def generate_bcube_topology_graph():
+    pass
+
+def generate_xpander_topology_graph():
+    pass
