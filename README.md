@@ -10,4 +10,8 @@ Workload Graph- Star graph with random number of leaf nodes, random uniform edge
 ## How to use:
 1. Create a pytohn [virtual environment](https://docs.python.org/3/library/venv.html)
 2. Run `pip install -r requirments.txt`
-3. Run `python algorithm.py`
+3. Create `dataset/internet` directory to add graphs for internet topology.
+3. Run `python algorithm.py [-t/--topology <topology>]`
+```
+Note: Currently we support only Internet Topology. Clos, Bcube, and Xpander topologies will be added in next iterations.
+```
