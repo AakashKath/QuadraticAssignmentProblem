@@ -1,45 +1,90 @@
 import math
-import matplotlib.pyplot as plt
 import networkx as nx
+
+from functools import partial
+from matplotlib import pyplot as plt, animation
 
 
 class DrawGraphs:
 
-    def __init__(self) -> None:
+    def __init__(self, graph, with_labels=False, title=None) -> None:
         self.figure_number = 0
+        self.graph = graph
+        self.title = title
+        self.with_labels = with_labels
+        self.figure = None
+        self.pos = nx.spring_layout(self.graph, k=10)
+        self.ani = None
+        self.add_graph()
 
     def draw(self):
         plt.show()
         self.figure_number = 0
 
-    def __add_figure_details(self, title):
+    def __add_figure_details(self):
         self.figure_number += 1
-        plt.figure(self.figure_number)
-        if title:
-            plt.title(title)
+        self.figure = plt.figure(self.figure_number, figsize=(20, 10))
+        if self.title:
+            plt.title(self.title)
         else:
             plt.title(f"Figure {self.figure_number}")
 
-    def add_graph(self, graph, with_labels=False, title=None):
-        self.__add_figure_details(title)
-        pos = nx.spring_layout(graph)
-        if with_labels:
-            node_labels = dict()
-            node_data = dict(graph.nodes(data=True))
-            for node, values in node_data.items():
-                node_labels.update({
-                    node: f"{str(node)}: {values.get('capacity', 0)}, {values.get('weight', math.inf)}, {values.get('demand', 0)}"
-                })
-            edge_labels = dict()
-            edge_data = graph.edges(data=True)
-            for u, v, values in edge_data:
-                edge_labels.update({
-                    (u, v): f"{values.get('capacity', 0)}, {values.get('weight', math.inf)}"
-                })
-            nx.draw(graph, pos, with_labels=True, labels=node_labels)
-            nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels)
-        else:
-            nx.draw(graph, pos)
+    def __default_values(self, key):
+        if key.lower() in ["capacity", "demand"]:
+            return 0
+        if key.lower() in ["cost", "weight"]:
+            return math.inf
+        return -1
+    
+    def __get_attributes(self, entity):
+        try:
+            return list(set(sum([list(v.keys()) for _, v in entity.items()], [])))
+        except AttributeError:
+            return list(set(sum([list(v.keys()) for _, _, v in entity], [])))
+
+    def __draw_table(self):
+        node_data = dict(self.graph.nodes(data=True))
+        attributes = self.__get_attributes(node_data)
+        node_info = [(["node", ] + attributes), ]
+        for node, values in node_data.items():
+            temp = [node, ]
+            for key in attributes:
+                temp.append(values.get(key, self.__default_values(key)))
+            node_info.append(temp)
+        plt.table(node_info)
+
+        edge_data = self.graph.edges(data=True)
+        attributes = self.__get_attributes(edge_data)
+        edge_info = [(["start_node", "end_node"] + attributes), ]
+        for u, v, values in edge_data:
+            temp = [u, v]
+            for key in attributes:
+                temp.append(values.get(key, self.__default_values(key)))
+            edge_info.append(temp)
+        plt.table(edge_info)
+
+    def add_graph(self):
+        self.__add_figure_details()
+        if self.with_labels:
+            self.__draw_table()
+        nx.draw(self.graph, self.pos, with_labels=True)
+
+    def __init_animation(self):
+        pass
+
+    def __add_flow(self, updated_details, frame):
+        u, v, values = updated_details[frame]
+        if self.graph.has_edge(v, u):
+            self.graph.remove_edge(v, u)
+        if values.get("weight") > 0:
+            self.graph[u][v]["color"] = "r"
+        nx.draw(self.graph, self.pos, with_labels=True, edge_color=nx.get_edge_attributes(self.graph, "color").values())
+
+    def add_flow(self, flow_graph):
+        updated_details = [(u, v, values) for u, v, values in flow_graph.edges(data=True)]
+        frames = len(nx.get_edge_attributes(flow_graph, "weight"))
+        self.ani = animation.FuncAnimation(self.figure, partial(self.__add_flow, updated_details), frames=frames, 
+                                           interval=2000, repeat=False, init_func=self.__init_animation)
 
 def from_min_cost_flow(flowDict):
     G = nx.DiGraph()

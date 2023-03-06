@@ -2,7 +2,7 @@ import networkx as nx
 import random
 
 
-DEFAULT_NODE_COUNT = random.randint(0, 10)
+DEFAULT_NODE_COUNT = random.randint(1, 10)
 
 def generate_workload(node_demand, edge_demand, node_count=DEFAULT_NODE_COUNT):
     G = nx.Graph()
