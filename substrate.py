@@ -4,9 +4,10 @@ import random
 from itertools import combinations, groupby
 
 DEFAULT_NODE_COUNT = 10
-PROBABILITY = 0.5
+DEFAULT_PROBABILITY = 0.5
+DEFAULT_LEVEL = 2
 
-def generate_random_graph(node_count=DEFAULT_NODE_COUNT, probability=PROBABILITY):
+def generate_random_graph(node_count=DEFAULT_NODE_COUNT, probability=DEFAULT_PROBABILITY):
     G = nx.Graph()
     edges = combinations(range(node_count), 2)
     G.add_nodes_from(range(node_count), capacity=random.randint(10, 50), weight=random.randint(0, 10), color="b")
@@ -25,6 +26,7 @@ def generate_random_graph(node_count=DEFAULT_NODE_COUNT, probability=PROBABILITY
         G.edges[u, v].update({"capacity": random.randint(10, 50), "weight": random.randint(0, 10), "color": "k"})
     return G
 
+
 def generate_internet_topology_graph(file_path):
     if file_path.endswith(".gml"):
         return nx.read_gml(file_path)
@@ -42,11 +44,39 @@ def generate_internet_topology_graph(file_path):
         return graph
     print("Only gml/graphml files allowed in Internet Topology.")
 
+
 def generate_clos_topology_graph():
     pass
 
-def generate_bcube_topology_graph():
-    pass
+
+def create_bcube(graph, node_count, level, counter):
+    server_list = list()
+    if level == 0:
+        graph.add_node(counter, is_switch=True)
+        switch = counter
+        counter += 1
+        for _ in range(node_count):
+            graph.add_node(counter)
+            graph.add_edge(switch, counter)
+            server_list.append(counter)
+            counter += 1
+        return server_list, counter
+    for _ in range(node_count):
+        servers, counter = create_bcube(graph, node_count, level-1, counter)
+        server_list.extend(servers)
+    for i in range(node_count**level):
+        graph.add_node(counter, is_switch=True)
+        switch = counter
+        for j in range(node_count):
+            graph.add_edge(switch, server_list[(node_count**level)*j+i])
+        counter += 1
+    return server_list, counter
+
+
+def generate_bcube_topology_graph(node_count=DEFAULT_NODE_COUNT, level=DEFAULT_LEVEL):
+    graph = nx.Graph()
+    create_bcube(graph, node_count, level, 0)
+    return graph
 
 def generate_xpander_topology_graph():
     pass
