@@ -6,7 +6,12 @@ from math import inf, floor
 from os.path import isfile, join
 
 from helpers import DrawGraphs, from_min_cost_flow
-from substrate import generate_random_graph, generate_internet_topology_graph, generate_bcube_topology_graph
+from substrate import (
+    generate_random_graph,
+    generate_internet_topology_graph,
+    generate_bcube_topology_graph,
+    generate_clos_topology_graph
+)
 from workload import generate_workload
 
 ALLOWED_TOPOLOGIES = ["internet", "clos", "bcube", "xpander", "random"]
@@ -65,7 +70,7 @@ def min_congestion(substrate_graph, flow, edge_demand):
         except nx.exception.NetworkXUnfeasible:
             print("No path found.")
     if min_graph:
-        drawing = DrawGraphs(min_substrate_graph, title="Substrate Graph")
+        drawing = DrawGraphs(min_substrate_graph, title=f"Substrate Graph[{flow}]")
         drawing.add_flow(min_graph)
         drawing.draw()
         return True, flow
@@ -87,7 +92,7 @@ def min_congestion_star_workload(topology):
             if not found_flow:
                 print(f"Couldn't find a min cost flow for the graph. Maximum flow: {capacity}")
     elif topology == "clos":
-        pass
+        substrate_graph = generate_clos_topology_graph()
     elif topology == "bcube":
         substrate_graph = generate_bcube_topology_graph()
     elif topology == "xpander":

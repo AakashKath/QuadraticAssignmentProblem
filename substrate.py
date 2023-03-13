@@ -2,10 +2,14 @@ import networkx as nx
 import random
 
 from itertools import combinations, groupby
+from math import ceil, floor
 
 DEFAULT_NODE_COUNT = 10
 DEFAULT_PROBABILITY = 0.5
 DEFAULT_LEVEL = 2
+DEFAULT_MIDDLE_STAGE_COUNT = 5
+DEFAULT_STAGE_COUNT = 1
+DEFAULT_EDGE_SWITCH_COUNT = 5
 
 def generate_random_graph(node_count=DEFAULT_NODE_COUNT, probability=DEFAULT_PROBABILITY):
     G = nx.Graph()
@@ -45,8 +49,52 @@ def generate_internet_topology_graph(file_path):
     print("Only gml/graphml files allowed in Internet Topology.")
 
 
-def generate_clos_topology_graph():
-    pass
+def create_clos_server(graph, previous_nodes, node_count, stage_no):
+    node_list = list()
+    are_egress_servers = True if graph.nodes() else False
+    for i in range(node_count):
+        node = f"{stage_no}_{i}"
+        node_list.append(node)
+        graph.add_node(node)
+        if are_egress_servers:
+            for pre in previous_nodes:
+                graph.add_edge(node, pre)
+    stage_no += 1
+    return node_list, stage_no
+
+
+def create_clos_stage(graph, previous_nodes, crossbars, stage_no):
+    node_list = list()
+    for i in range(crossbars):
+        node = f"{stage_no}_{i}"
+        node_list.append(node)
+        graph.add_node(node, is_switch=True)
+        for pre in previous_nodes:
+            graph.add_edge(node, pre)
+    stage_no += 1
+    return node_list, stage_no
+
+
+def generate_clos_topology_graph(
+    node_count=DEFAULT_NODE_COUNT,
+    middle_stage_crossbars=DEFAULT_MIDDLE_STAGE_COUNT,
+    number_of_stages=DEFAULT_STAGE_COUNT,
+    edge_crossbars=DEFAULT_EDGE_SWITCH_COUNT
+):
+    graph = nx.Graph()
+    stage_no = 0
+    node_list = list()
+    # Divide the servers into two parts
+    node_list, stage_no = create_clos_server(graph, node_list, floor(node_count/2), stage_no)
+    # Create Ingress stage
+    node_list, stage_no = create_clos_stage(graph, node_list, edge_crossbars, stage_no)
+    # Create middle stages
+    for _ in range(number_of_stages):
+        node_list, stage_no = create_clos_stage(graph, node_list, middle_stage_crossbars, stage_no)
+    # Create egress stage
+    node_list, stage_no = create_clos_stage(graph, node_list, edge_crossbars, stage_no)
+    create_clos_server(graph, node_list, ceil(node_count/2), stage_no)
+    return graph
 
 
 def create_bcube(graph, node_count, level, counter):
