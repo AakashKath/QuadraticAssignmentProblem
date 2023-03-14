@@ -10,7 +10,8 @@ from substrate import (
     generate_random_graph,
     generate_internet_topology_graph,
     generate_bcube_topology_graph,
-    generate_clos_topology_graph
+    generate_clos_topology_graph,
+    generate_xpander_topology_graph
 )
 from workload import generate_workload
 
@@ -46,7 +47,7 @@ def generate_network_flow(graph, source, node_demand, edge_demand):
     return G
 
 
-def min_congestion(substrate_graph, flow, edge_demand):
+def min_congestion(substrate_graph, flow, edge_demand, layout=None):
     min_cost = inf
     min_graph = None
     min_substrate_graph = None
@@ -70,7 +71,7 @@ def min_congestion(substrate_graph, flow, edge_demand):
         except nx.exception.NetworkXUnfeasible:
             print("No path found.")
     if min_graph:
-        drawing = DrawGraphs(min_substrate_graph, title=f"Substrate Graph[{flow}]")
+        drawing = DrawGraphs(min_substrate_graph, title=f"Substrate Graph[{flow}]", layout=layout)
         drawing.add_flow(min_graph)
         drawing.draw()
         return True, flow
@@ -96,7 +97,7 @@ def min_congestion_star_workload(topology):
     elif topology == "bcube":
         substrate_graph = generate_bcube_topology_graph()
     elif topology == "xpander":
-        pass
+        substrate_graph = generate_xpander_topology_graph()
     elif topology == "random":
         while True:
             substrate_graph = generate_random_graph()

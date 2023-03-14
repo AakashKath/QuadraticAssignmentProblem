@@ -3,20 +3,29 @@ import networkx as nx
 
 from functools import partial
 from matplotlib import pyplot as plt, animation
+from networkx.drawing.nx_pydot import graphviz_layout
 
 
 class DrawGraphs:
     excluded_attributes = ["color", "is_switch"]
 
-    def __init__(self, graph, with_labels=False, title=None) -> None:
+    def __init__(self, graph, with_labels=False, title=None, layout=None):
         self.figure_number = 0
         self.graph = graph
         self.title = title
         self.with_labels = with_labels
         self.figure = None
-        self.pos = nx.spring_layout(self.graph, k=10)
         self.ani = None
+        self.__generate_graph_position(layout)
         self.add_graph()
+
+    def __generate_graph_position(self, layout):
+        if layout == "circular":
+            self.pos = nx.circular_layout(self.graph)
+        elif layout == "tree":
+            self.pos = graphviz_layout(self.graph, prog="dot")
+        else:
+            self.pos = nx.spring_layout(self.graph, k=10)
 
     def draw(self):
         plt.show()

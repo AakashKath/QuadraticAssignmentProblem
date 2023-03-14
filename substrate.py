@@ -1,8 +1,8 @@
+import math
 import networkx as nx
 import random
 
 from itertools import combinations, groupby
-from math import ceil, floor
 
 DEFAULT_NODE_COUNT = 10
 DEFAULT_PROBABILITY = 0.5
@@ -10,6 +10,7 @@ DEFAULT_LEVEL = 2
 DEFAULT_MIDDLE_STAGE_COUNT = 5
 DEFAULT_STAGE_COUNT = 1
 DEFAULT_EDGE_SWITCH_COUNT = 5
+DEFAULT_LIFT_NO = 2
 
 def generate_random_graph(node_count=DEFAULT_NODE_COUNT, probability=DEFAULT_PROBABILITY):
     G = nx.Graph()
@@ -85,7 +86,7 @@ def generate_clos_topology_graph(
     stage_no = 0
     node_list = list()
     # Divide the servers into two parts
-    node_list, stage_no = create_clos_server(graph, node_list, floor(node_count/2), stage_no)
+    node_list, stage_no = create_clos_server(graph, node_list, math.floor(node_count/2), stage_no)
     # Create Ingress stage
     node_list, stage_no = create_clos_stage(graph, node_list, edge_crossbars, stage_no)
     # Create middle stages
@@ -93,7 +94,7 @@ def generate_clos_topology_graph(
         node_list, stage_no = create_clos_stage(graph, node_list, middle_stage_crossbars, stage_no)
     # Create egress stage
     node_list, stage_no = create_clos_stage(graph, node_list, edge_crossbars, stage_no)
-    create_clos_server(graph, node_list, ceil(node_count/2), stage_no)
+    create_clos_server(graph, node_list, math.ceil(node_count/2), stage_no)
     return graph
 
 
@@ -126,5 +127,48 @@ def generate_bcube_topology_graph(node_count=DEFAULT_NODE_COUNT, level=DEFAULT_L
     create_bcube(graph, node_count, level, 0)
     return graph
 
-def generate_xpander_topology_graph():
-    pass
+
+def lift_graph(graph, lift):
+    mapping = dict(zip(graph.nodes(), [lift*x for x in graph.nodes()]))
+    graph = nx.relabel_nodes(graph, mapping)
+    for n in list(graph.nodes()):
+        for i in range(1, lift):
+            graph.add_node(n+i, is_switch=True)
+    for u, v in list(graph.edges()):
+        graph.remove_edge(u, v)
+        matching = list(range(lift))
+        random.shuffle(matching)
+        for i in range(lift):
+            j = matching[i]
+            graph.add_edge(u+i, v+j)
+    return graph
+
+
+def generate_xpander_topology_graph(node_count=64, servers_per_rack=4, lift=DEFAULT_LIFT_NO):
+    """
+    Xpander topology generated as per https://github.com/prvnkumar/xpander/blob/master/xpander/xpander.py
+    """
+    # Update parameters to create xpander topology
+    num_switches = int(math.ceil(node_count/servers_per_rack))
+    switch_d = random.randint(1, num_switches-1)
+    num_lifts = int(math.ceil(math.log(num_switches/(switch_d+1), lift)))
+    num_switches = int((switch_d + 1) * math.pow(lift, num_lifts))
+    node_count = num_switches * servers_per_rack
+    print(f"No. of switches: {num_switches}")
+
+    # Create expander graph for switches
+    graph = nx.random_regular_graph(switch_d, switch_d+1)
+    nx.set_node_attributes(graph, True, "is_switch")
+
+    # Lift graph
+    for i in range(num_lifts):
+        graph = lift_graph(graph, lift)
+
+    # Add server nodes
+    server_no = num_switches
+    for i in list(graph.nodes()):
+        for _ in range(servers_per_rack):
+            graph.add_edge(i, server_no)
+            server_no += 1
+
+    return graph
