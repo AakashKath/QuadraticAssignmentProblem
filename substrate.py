@@ -141,7 +141,7 @@ def lift_graph(graph, lift):
         random.shuffle(matching)
         for i in range(lift):
             j = matching[i]
-            graph.add_edge(u+i, v+j)
+            graph.add_edge(u+i, v+j, capacity=random.randint(10, 50), weight=random.randint(0, 10))
     return graph
 
 
@@ -169,7 +169,7 @@ def generate_xpander_topology_graph(node_count=DEFAULT_NODE_COUNT, servers_per_r
     server_no = num_switches
     for i in list(graph.nodes()):
         for _ in range(servers_per_rack):
-            graph.add_edge(i, server_no)
+            graph.add_edge(i, server_no, capacity=random.randint(10, 50), weight=random.randint(0, 10))
             server_no += 1
 
     return graph

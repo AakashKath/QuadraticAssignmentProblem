@@ -72,6 +72,15 @@ class DrawGraphs:
                       [[u, v]+self.__extract_attribute_values(attributes, values) 
                        for u, v, values in edge_data])
 
+    def __update_nodes_color(self):
+        for _, values in self.graph.nodes(data=True):
+            if values.get("color"):
+                continue
+            if values.get("is_switch", False):
+                values.update({"color": "g"})
+            else:
+                values.update({"color": "b"})
+
     def add_graph(self):
         self.__add_figure_details()
         labels = dict()
@@ -80,6 +89,7 @@ class DrawGraphs:
             edge_color = nx.get_edge_attributes(self.graph, "color").values()
             if edge_color:
                 labels.update({"edge_color": edge_color})
+            self.__update_nodes_color()
             node_color = nx.get_node_attributes(self.graph, "color").values()
             if node_color:
                 labels.update({"node_color": node_color})

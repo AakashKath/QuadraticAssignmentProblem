@@ -37,6 +37,10 @@ def add_sink_node(flow_graph, substrate_graph, node_demand):
 def generate_network_flow(graph, source, node_demand, edge_demand):
     G = nx.DiGraph()
     for (u, v, kwargs) in graph.edges(data=True):
+        if graph.nodes().get(u).get("is_switch"):
+            G.add_node(u, is_switch=True)
+        if graph.nodes().get(v).get("is_switch"):
+            G.add_node(v, is_switch=True)
         kwargs.update({"capacity": floor(kwargs.get("capacity", 0)/edge_demand)})
         if source != v:
             G.add_edge(u, v, **kwargs)
