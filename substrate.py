@@ -10,6 +10,7 @@ DEFAULT_LEVEL = 2
 DEFAULT_MIDDLE_STAGE_COUNT = 5
 DEFAULT_STAGE_COUNT = 1
 DEFAULT_EDGE_SWITCH_COUNT = 5
+DEFAULT_SERVERS_PER_RACK = 4
 DEFAULT_LIFT_NO = 2
 
 def generate_random_graph(node_count=DEFAULT_NODE_COUNT, probability=DEFAULT_PROBABILITY):
@@ -144,7 +145,7 @@ def lift_graph(graph, lift):
     return graph
 
 
-def generate_xpander_topology_graph(node_count=64, servers_per_rack=4, lift=DEFAULT_LIFT_NO):
+def generate_xpander_topology_graph(node_count=DEFAULT_NODE_COUNT, servers_per_rack=DEFAULT_SERVERS_PER_RACK, lift=DEFAULT_LIFT_NO):
     """
     Xpander topology generated as per https://github.com/prvnkumar/xpander/blob/master/xpander/xpander.py
     """
