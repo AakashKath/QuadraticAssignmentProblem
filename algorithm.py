@@ -36,11 +36,12 @@ def add_sink_node(flow_graph, substrate_graph, node_demand):
 
 def generate_network_flow(graph, source, node_demand, edge_demand):
     G = nx.DiGraph()
-    for (u, v, kwargs) in graph.edges(data=True):
-        if graph.nodes().get(u).get("is_switch"):
+    for u, values in graph.nodes(data=True):
+        if values.get("is_switch"):
             G.add_node(u, is_switch=True)
-        if graph.nodes().get(v).get("is_switch"):
-            G.add_node(v, is_switch=True)
+        else:
+            G.add_node(u)
+    for (u, v, kwargs) in graph.edges(data=True):
         kwargs.update({"capacity": floor(kwargs.get("capacity", 0)/edge_demand)})
         if source != v:
             G.add_edge(u, v, **kwargs)
@@ -51,12 +52,12 @@ def generate_network_flow(graph, source, node_demand, edge_demand):
     return G
 
 
-def min_congestion(substrate_graph, flow, edge_demand, layout=None):
+def min_congestion(substrate_graph, flow, edge_demand, layout=None, path=None):
     min_cost = inf
     min_graph = None
     min_substrate_graph = None
     max_capacity = 0
-    for source in list(substrate_graph.nodes())[:1]:
+    for source in list(substrate_graph.nodes()):
         if substrate_graph.nodes().get(source).get("is_switch", False):
             continue
         network_flow_graph = generate_network_flow(substrate_graph, source, -flow, edge_demand)
@@ -75,7 +76,7 @@ def min_congestion(substrate_graph, flow, edge_demand, layout=None):
         except nx.exception.NetworkXUnfeasible:
             print("No path found.")
     if min_graph:
-        drawing = DrawGraphs(min_substrate_graph, title=f"Substrate Graph[{flow}]", layout=layout)
+        drawing = DrawGraphs(min_substrate_graph, layout=layout, path=path, title=f"Flow: {flow}")
         drawing.add_flow(min_graph)
         drawing.draw()
         return True, flow
@@ -86,14 +87,13 @@ def min_congestion_star_workload(topology):
     workload_graph = generate_workload(node_demand=1, edge_demand=10)
     flow = len(workload_graph.nodes())-1
     edge_demand = workload_graph.get_edge_data("center", "leaf_0")["weight"]
+    title = f"Substrate Graph[{flow}]"
     if topology == "internet":
         dir_path = "dataset/internet"
-        # Enabled only a few files as capacity is still not certain
-        # internet_toplogy_files = [f for f in os.listdir(dir_path) if isfile(join(dir_path, f)) and f.endswith(".graphml")]
-        internet_toplogy_files = ['Cesnet1999.graphml', 'Sinet.graphml', 'Cudi.graphml', 'Garr200912.graphml', 'Internetmci.graphml', 'Garr201104.graphml', 'Cesnet200511.graphml', 'Arn.graphml', 'Aconet.graphml', 'SwitchL3.graphml', 'Cesnet201006.graphml', 'KentmanJul2005.graphml', 'Kreonet.graphml', 'Garr200908.graphml', 'Sanet.graphml', 'Marwan.graphml', 'Garr201003.graphml', 'Litnet.graphml', 'Garr199904.graphml', 'Savvis.graphml', 'Pacificwave.graphml', 'Garr200112.graphml', 'Renater2006.graphml', 'Janetlense.graphml', 'Basnet.graphml', 'Cesnet200603.graphml', 'Karen.graphml', 'Myren.graphml', 'Ulaknet.graphml', 'Cesnet200304.graphml', 'Geant2009.graphml', 'Garr201110.graphml', 'Latnet.graphml', 'Garr201112.graphml', 'Garr201111.graphml', 'KentmanJan2011.graphml', 'Carnet.graphml', 'Garr201001.graphml', 'Cesnet1997.graphml', 'Arnes.graphml', 'Zamren.graphml', 'Restena.graphml', 'Garr201004.graphml', 'Geant2001.graphml', 'Geant2012.graphml', 'KentmanFeb2008.graphml', 'Nordu1989.graphml', 'Agis.graphml', 'Garr201201.graphml', 'Garr201107.graphml', 'Atmnet.graphml', 'Belnet2005.graphml', 'Geant2010.graphml', 'Garr201105.graphml', 'Cynet.graphml', 'Renater2001.graphml', 'Renam.graphml', 'Grnet.graphml', 'Ilan.graphml', 'Garr201108.graphml', 'Niif.graphml', 'Harnet.graphml', 'Renater2010.graphml', 'Garr201012.graphml', 'Renater1999.graphml', 'Uran.graphml', 'Padi.graphml', 'Renater2004.graphml', 'Gambia.graphml', 'KentmanAug2005.graphml', 'WideJpn.graphml', 'KentmanApr2007.graphml', 'Garr200109.graphml', 'Internode.graphml', 'Amres.graphml', 'Rediris.graphml', 'Rnp.graphml', 'Uninett2011.graphml', 'Garr201008.graphml', 'TLex.graphml', 'Iij.graphml', 'Belnet2006.graphml', 'Cesnet2001.graphml', 'Nordu2005.graphml', 'Garr200212.graphml', 'Esnet.graphml', 'Garr199905.graphml', 'Forthnet.graphml', 'Vinaren.graphml', 'Garr201103.graphml', 'Reuna.graphml', 'PionierL3.graphml', 'Garr201101.graphml', 'Garr200902.graphml', 'Belnet2003.graphml', 'Uninett2010.graphml', 'Eenet.graphml', 'Bren.graphml', 'Garr201010.graphml', 'Belnet2004.graphml', 'Garr201102.graphml', 'Marnet.graphml', 'Garr201109.graphml', 'Cesnet200706.graphml', 'Garr200909.graphml', 'Garr201007.graphml', 'Renater2008.graphml', 'Garr201005.graphml', 'Cernet.graphml', 'Cesnet1993.graphml', 'Garr200404.graphml']
-        for file_name in internet_toplogy_files[:1]:
+        internet_toplogy_files = [f for f in os.listdir(dir_path) if isfile(join(dir_path, f)) and f.endswith(".graphml")]
+        for file_name in internet_toplogy_files:
             substrate_graph = generate_internet_topology_graph(join(dir_path, file_name))
-            found_flow, capacity = min_congestion(substrate_graph, flow, edge_demand)
+            found_flow, capacity = min_congestion(substrate_graph, flow, edge_demand, path=f"figures/internet/{file_name}.png")
             if not found_flow:
                 print(f"Couldn't find a min cost flow for the graph. Maximum flow: {capacity}")
     elif topology == "clos":
@@ -105,7 +105,7 @@ def min_congestion_star_workload(topology):
     elif topology == "random":
         while True:
             substrate_graph = generate_random_graph()
-            found_flow, _ = min_congestion(substrate_graph, flow, edge_demand)
+            found_flow, _ = min_congestion(substrate_graph, flow, edge_demand, path=f"figures/random/{title}.png")
             if found_flow:
                 return
     else:

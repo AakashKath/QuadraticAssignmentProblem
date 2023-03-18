@@ -1,5 +1,6 @@
 import math
 import networkx as nx
+import os
 
 from functools import partial
 from matplotlib import pyplot as plt, animation
@@ -9,13 +10,14 @@ from networkx.drawing.nx_pydot import graphviz_layout
 class DrawGraphs:
     excluded_attributes = ["color", "is_switch"]
 
-    def __init__(self, graph, with_labels=False, title=None, layout=None):
+    def __init__(self, graph, with_labels=False, title=None, layout=None, path=None):
         self.figure_number = 0
         self.graph = graph
         self.title = title
         self.with_labels = with_labels
         self.figure = None
         self.ani = None
+        self.path=path
         self.__generate_graph_position(layout)
         self.add_graph()
 
@@ -28,16 +30,22 @@ class DrawGraphs:
             self.pos = nx.spring_layout(self.graph, k=10)
 
     def draw(self):
-        plt.show()
+        if self.path:
+            directories = "/".join(self.path.split("/")[:-1])
+            if not os.path.exists(directories):
+                os.makedirs(directories)
+            plt.savefig(self.path)
+            plt.clf()
+        else:
+            plt.show()
         self.figure_number = 0
 
     def __add_figure_details(self):
         self.figure_number += 1
         self.figure = plt.figure(self.figure_number, figsize=(20, 10))
-        if self.title:
-            plt.title(self.title)
-        else:
-            plt.title(f"Figure {self.figure_number}")
+        if not self.title:
+            self.title = f"Figure {self.figure_number}"
+        plt.title(self.title)
 
     def __default_values(self, key):
         if key.lower() in ["capacity", "demand"]:
@@ -113,8 +121,12 @@ class DrawGraphs:
         updated_details = [(u, v, values) for u, v, values in flow_graph.edges(data=True)]
         colored_edges = dict()
         frames = len(nx.get_edge_attributes(flow_graph, "capacity"))
-        self.ani = animation.FuncAnimation(self.figure, partial(self.__add_flow, updated_details, colored_edges), frames=frames, 
-                                           interval=1000, repeat=False, init_func=self.__init_animation)
+        if self.path:
+            for frame in range(frames):
+                self.__add_flow(updated_details, colored_edges, frame)
+        else:
+            self.ani = animation.FuncAnimation(self.figure, partial(self.__add_flow, updated_details, colored_edges), frames=frames, 
+                                               interval=1000, repeat=False, init_func=self.__init_animation)
 
 
 def from_min_cost_flow(flow_dict, flow_graph):
