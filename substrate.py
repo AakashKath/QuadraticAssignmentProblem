@@ -127,7 +127,7 @@ def lift_graph(graph, lift):
     graph = nx.relabel_nodes(graph, mapping)
     for n in list(graph.nodes()):
         for i in range(1, lift):
-            graph.add_node(n+i, is_switch=True)
+            graph.add_node(n+i, is_switch=True, capacity=random.randint(10, 50), weight=random.randint(1, 10))
     for u, v in list(graph.edges()):
         graph.remove_edge(u, v)
         matching = list(range(lift))
@@ -154,6 +154,12 @@ def generate_xpander_topology_graph(node_count=DEFAULT_NODE_COUNT, servers_per_r
     graph = nx.random_regular_graph(switch_d, switch_d+1)
     nx.set_node_attributes(graph, True, "is_switch")
 
+    # Add capacity and weights to edges/nodes
+    for _, _, values in graph.edges(data=True):
+        values.update({"capacity": random.randint(10, 50), "weight": random.randint(1, 10)})
+    for _, values in graph.nodes(data=True):
+        values.update({"capacity": random.randint(10, 50), "weight": random.randint(1, 10)})
+
     # Lift graph
     for i in range(num_lifts):
         graph = lift_graph(graph, lift)
@@ -162,6 +168,7 @@ def generate_xpander_topology_graph(node_count=DEFAULT_NODE_COUNT, servers_per_r
     server_no = num_switches
     for i in list(graph.nodes()):
         for _ in range(servers_per_rack):
+            graph.add_node(server_no, capacity=random.randint(10, 50), weight=random.randint(1, 10))
             graph.add_edge(i, server_no, capacity=random.randint(10, 50), weight=random.randint(1, 10))
             server_no += 1
 

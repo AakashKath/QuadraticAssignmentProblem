@@ -103,6 +103,7 @@ def min_congestion_star_workload(topology, save_graph):
         min_congestion(substrate_graph, flow, edge_demand, path=path)
     elif topology == "xpander":
         substrate_graph = generate_xpander_topology_graph()
+        min_congestion(substrate_graph, flow, edge_demand, path=path)
     elif topology == "random":
         while True:
             substrate_graph = generate_random_graph()
