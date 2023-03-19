@@ -2,6 +2,7 @@ import argparse
 import networkx as nx
 import os
 
+from datetime import datetime
 from math import inf, floor
 from os.path import isfile, join
 
@@ -87,28 +88,27 @@ def min_congestion_star_workload(topology, save_graph):
     workload_graph = generate_workload(node_demand=1, edge_demand=10)
     flow = len(workload_graph.nodes())-1
     edge_demand = workload_graph.get_edge_data("center", "leaf_0")["weight"]
-    title = f"Substrate Graph[{flow}]"
-    path = None
+    path = f"figures/{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}_[{flow}].png" if save_graph else None
 
     if topology == "internet":
         dir_path = "dataset/internet"
         internet_toplogy_files = [f for f in os.listdir(dir_path) if isfile(join(dir_path, f)) and f.endswith(".graphml")]
         for file_name in internet_toplogy_files:
             substrate_graph = generate_internet_topology_graph(join(dir_path, file_name))
-            if save_graph:
-                path = f"figures/internet/{file_name}.png"
+            path = f"figures/{file_name}.png" if path else None
             found_flow, capacity = min_congestion(substrate_graph, flow, edge_demand, path=path)
             if not found_flow:
                 print(f"Couldn't find a min cost flow for the graph. Maximum flow: {capacity}")
     elif topology == "clos":
         substrate_graph = generate_clos_topology_graph()
+        found_flow, capacity = min_congestion(substrate_graph, flow, edge_demand, path=path)
+        if not found_flow:
+            print(f"Couldn't find a min cost flow for the graph. Maximum flow: {capacity}")
     elif topology == "bcube":
         substrate_graph = generate_bcube_topology_graph()
     elif topology == "xpander":
         substrate_graph = generate_xpander_topology_graph()
     elif topology == "random":
-        if save_graph:
-            path = f"figures/random/{title}.png"
         while True:
             substrate_graph = generate_random_graph()
             found_flow, _ = min_congestion(substrate_graph, flow, edge_demand, path=path)

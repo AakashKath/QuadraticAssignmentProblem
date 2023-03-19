@@ -16,7 +16,7 @@ DEFAULT_LIFT_NO = 2
 def generate_random_graph(node_count=DEFAULT_NODE_COUNT, probability=DEFAULT_PROBABILITY):
     G = nx.Graph()
     edges = combinations(range(node_count), 2)
-    G.add_nodes_from(range(node_count), capacity=random.randint(10, 50), weight=random.randint(0, 10))
+    G.add_nodes_from(range(node_count), capacity=random.randint(10, 50), weight=random.randint(1, 10))
     if probability <= 0:
         return G
     if probability >= 1:
@@ -24,10 +24,10 @@ def generate_random_graph(node_count=DEFAULT_NODE_COUNT, probability=DEFAULT_PRO
     for _, node_edges in groupby(edges, key=lambda x: x[0]):
         node_edges = list(node_edges)
         random_edge = random.choice(node_edges)
-        G.add_edge(*random_edge, capacity=random.randint(10, 50), weight=random.randint(0, 10))
+        G.add_edge(*random_edge, capacity=random.randint(10, 50), weight=random.randint(1, 10))
         for e in node_edges:
             if random.random() < probability:
-                G.add_edge(*e, capacity=random.randint(10, 50), weight=random.randint(0, 10))
+                G.add_edge(*e, capacity=random.randint(10, 50), weight=random.randint(1, 10))
     return G
 
 
@@ -51,7 +51,7 @@ def generate_internet_topology_graph(file_path):
 
 def create_clos_server(graph, node_count, edge_switches):
     for i in range(node_count):
-        graph.add_edge(i, edge_switches[i%len(edge_switches)], capacity=random.randint(10, 50), weight=random.randint(0, 10))
+        graph.add_edge(i, edge_switches[i%len(edge_switches)], capacity=random.randint(10, 50), weight=random.randint(1, 10))
 
 
 def create_clos_stage(graph, previous_nodes, crossbars, stage_no):
@@ -61,7 +61,7 @@ def create_clos_stage(graph, previous_nodes, crossbars, stage_no):
         node_list.append(node)
         graph.add_node(node, is_switch=True)
         for pre in previous_nodes:
-            graph.add_edge(node, pre, capacity=random.randint(10, 50), weight=random.randint(0, 10))
+            graph.add_edge(node, pre, capacity=random.randint(10, 50), weight=random.randint(1, 10))
     stage_no += 1
     return node_list, stage_no
 
@@ -85,6 +85,9 @@ def generate_clos_topology_graph(
     edges_switches = [node for node in graph.nodes() if node.startswith("0_") or node.startswith(f"{stage_no - 1}_")]
     # Create servers and connect to edge switches
     create_clos_server(graph, node_count, edges_switches)
+    # Add weights and capacity on nodes
+    for i, values in graph.nodes(data=True):
+        values.update({"capacity": random.randint(10, 50), "weight": random.randint(1, 10)})
     return graph
 
 
@@ -130,7 +133,7 @@ def lift_graph(graph, lift):
         random.shuffle(matching)
         for i in range(lift):
             j = matching[i]
-            graph.add_edge(u+i, v+j, capacity=random.randint(10, 50), weight=random.randint(0, 10))
+            graph.add_edge(u+i, v+j, capacity=random.randint(10, 50), weight=random.randint(1, 10))
     return graph
 
 
@@ -158,7 +161,7 @@ def generate_xpander_topology_graph(node_count=DEFAULT_NODE_COUNT, servers_per_r
     server_no = num_switches
     for i in list(graph.nodes()):
         for _ in range(servers_per_rack):
-            graph.add_edge(i, server_no, capacity=random.randint(10, 50), weight=random.randint(0, 10))
+            graph.add_edge(i, server_no, capacity=random.randint(10, 50), weight=random.randint(1, 10))
             server_no += 1
 
     return graph
