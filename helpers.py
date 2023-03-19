@@ -80,24 +80,31 @@ class DrawGraphs:
                       [[u, v]+self.__extract_attribute_values(attributes, values) 
                        for u, v, values in edge_data])
 
-    def __update_nodes_color(self):
+    def __add_default_colors(self):
+        # Node colors
         for _, values in self.graph.nodes(data=True):
-            if values.get("color"):
+            if values.get("color", None):
                 continue
             if values.get("is_switch", False):
                 values.update({"color": "g"})
             else:
                 values.update({"color": "b"})
 
+        # Edge colors
+        for _, _, values in self.graph.edges(data=True):
+            if values.get("color", None):
+                continue
+            values.update({"color": "k"})
+
     def add_graph(self):
         self.__add_figure_details()
+        self.__add_default_colors()
         labels = dict()
         if self.with_labels:
             self.__draw_table()
             edge_color = nx.get_edge_attributes(self.graph, "color").values()
             if edge_color:
                 labels.update({"edge_color": edge_color})
-            self.__update_nodes_color()
             node_color = nx.get_node_attributes(self.graph, "color").values()
             if node_color:
                 labels.update({"node_color": node_color})
@@ -107,12 +114,12 @@ class DrawGraphs:
         pass
 
     def __add_flow(self, updated_details, colored_edges, frame):
+        self.figure.clear()
         u, v, values = updated_details[frame]
         if self.graph.has_edge(v, u):
             self.graph.remove_edge(v, u)
-        if values.get("capacity") > 0:
-            self.graph[u][v]["color"] = "r"
-            colored_edges.update({(u, v): values.get("capacity")})
+        self.graph[u][v]["color"] = "r"
+        colored_edges.update({(u, v): values.get("capacity")})
         nx.draw(self.graph, self.pos, with_labels=True, edge_color=nx.get_edge_attributes(self.graph, "color").values())
         if colored_edges:
             nx.draw_networkx_edge_labels(self.graph, self.pos, edge_labels=colored_edges, font_color="r")

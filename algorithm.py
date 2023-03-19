@@ -26,7 +26,6 @@ def add_sink_node(flow_graph, substrate_graph, node_demand):
         if u != "source" and substrate_graph.nodes().get(u).get("is_switch", False):
             continue
         data = substrate_nodes.get(u, {})
-        data.update({"color": "k"})
         if u == "source":
             # data.update({"capacity": data.get("capacity", 0)-1})
             data.update({"capacity": 0}) # source-sink capacity set to 0 to avoid trivial path
