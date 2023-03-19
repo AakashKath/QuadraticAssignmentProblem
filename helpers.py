@@ -40,12 +40,15 @@ class DrawGraphs:
             plt.show()
         self.figure_number = 0
 
+    def __add_title(self):
+        plt.title(self.title)
+
     def __add_figure_details(self):
         self.figure_number += 1
         self.figure = plt.figure(self.figure_number, figsize=(20, 10))
         if not self.title:
             self.title = f"Figure {self.figure_number}"
-        plt.title(self.title)
+        self.__add_title()
 
     def __default_values(self, key):
         if key.lower() in ["capacity", "demand"]:
@@ -115,6 +118,7 @@ class DrawGraphs:
 
     def __add_flow(self, updated_details, colored_edges, frame):
         self.figure.clear()
+        self.__add_title()
         u, v, values = updated_details[frame]
         if self.graph.has_edge(v, u):
             self.graph.remove_edge(v, u)
