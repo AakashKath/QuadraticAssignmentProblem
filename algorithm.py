@@ -56,7 +56,6 @@ def min_congestion(substrate_graph, flow, edge_demand, layout=None, path=None):
     min_cost = inf
     min_graph = None
     min_substrate_graph = None
-    max_capacity = 0
     for source in list(substrate_graph.nodes()):
         if substrate_graph.nodes().get(source).get("is_switch", False):
             continue
@@ -67,9 +66,8 @@ def min_congestion(substrate_graph, flow, edge_demand, layout=None, path=None):
         #     continue
         try:
             flow_dict = nx.min_cost_flow(network_flow_graph)
-            flow_graph, cost, capacity = from_min_cost_flow(flow_dict, network_flow_graph)
-            max_capacity = max(capacity, max_capacity)
-            if cost < min_cost and capacity >= flow:
+            flow_graph, cost = from_min_cost_flow(flow_dict, network_flow_graph)
+            if cost < min_cost:
                 min_cost = cost
                 min_graph = flow_graph
                 min_substrate_graph = network_flow_graph
@@ -80,8 +78,8 @@ def min_congestion(substrate_graph, flow, edge_demand, layout=None, path=None):
         drawing = DrawGraphs(min_substrate_graph, layout=layout, path=path, title=f"Flow: {flow}")
         drawing.add_flow(min_graph)
         drawing.draw()
-        return True, flow
-    return False, max_capacity
+        return True
+    return False
 
 
 def min_congestion_star_workload(topology, save_graph):
@@ -96,22 +94,19 @@ def min_congestion_star_workload(topology, save_graph):
         for file_name in internet_toplogy_files:
             substrate_graph = generate_internet_topology_graph(join(dir_path, file_name))
             path = f"figures/{file_name}.png" if path else None
-            found_flow, capacity = min_congestion(substrate_graph, flow, edge_demand, path=path)
-            if not found_flow:
-                print(f"Couldn't find a min cost flow for the graph. Maximum flow: {capacity}")
+            min_congestion(substrate_graph, flow, edge_demand, path=path)
     elif topology == "clos":
         substrate_graph = generate_clos_topology_graph()
-        found_flow, capacity = min_congestion(substrate_graph, flow, edge_demand, path=path)
-        if not found_flow:
-            print(f"Couldn't find a min cost flow for the graph. Maximum flow: {capacity}")
+        min_congestion(substrate_graph, flow, edge_demand, path=path)
     elif topology == "bcube":
         substrate_graph = generate_bcube_topology_graph()
+        min_congestion(substrate_graph, flow, edge_demand, path=path)
     elif topology == "xpander":
         substrate_graph = generate_xpander_topology_graph()
     elif topology == "random":
         while True:
             substrate_graph = generate_random_graph()
-            found_flow, _ = min_congestion(substrate_graph, flow, edge_demand, path=path)
+            found_flow = min_congestion(substrate_graph, flow, edge_demand, path=path)
             if found_flow:
                 return
     else:

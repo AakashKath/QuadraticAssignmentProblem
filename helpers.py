@@ -143,7 +143,6 @@ class DrawGraphs:
 def from_min_cost_flow(flow_dict, flow_graph):
     G = nx.DiGraph()
     total_cost = 0
-    total_capacity = 0
     substrate_edges = flow_graph.edges()
     for node in flow_dict.keys():
         G.add_node(node)
@@ -153,6 +152,4 @@ def from_min_cost_flow(flow_dict, flow_graph):
                 weight = substrate_edges[u, v]["weight"]
                 G.add_edge(u, v, capacity=capacity, weight=weight)
                 total_cost += weight*capacity
-                if u == "source":
-                    total_capacity += capacity
-    return G, total_cost, total_capacity
+    return G, total_cost

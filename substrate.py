@@ -6,6 +6,7 @@ from itertools import combinations, groupby
 
 DEFAULT_NODE_COUNT = 10
 DEFAULT_PROBABILITY = 0.5
+DEFAULT_BCUBE_0_NODE_COUNT = 3
 DEFAULT_LEVEL = 2
 DEFAULT_MIDDLE_STAGE_COUNT = 5
 DEFAULT_STAGE_COUNT = 1
@@ -94,12 +95,12 @@ def generate_clos_topology_graph(
 def create_bcube(graph, node_count, level, counter):
     server_list = list()
     if level == 0:
-        graph.add_node(counter, is_switch=True)
+        graph.add_node(counter, is_switch=True, capacity=random.randint(10, 50), weight=random.randint(1, 10))
         switch = counter
         counter += 1
         for _ in range(node_count):
-            graph.add_node(counter)
-            graph.add_edge(switch, counter)
+            graph.add_node(counter, capacity=random.randint(10, 50), weight=random.randint(1, 10))
+            graph.add_edge(switch, counter, capacity=random.randint(10, 50), weight=random.randint(1, 10))
             server_list.append(counter)
             counter += 1
         return server_list, counter
@@ -107,15 +108,15 @@ def create_bcube(graph, node_count, level, counter):
         servers, counter = create_bcube(graph, node_count, level-1, counter)
         server_list.extend(servers)
     for i in range(node_count**level):
-        graph.add_node(counter, is_switch=True)
+        graph.add_node(counter, is_switch=True, capacity=random.randint(10, 50), weight=random.randint(1, 10))
         switch = counter
         for j in range(node_count):
-            graph.add_edge(switch, server_list[(node_count**level)*j+i])
+            graph.add_edge(switch, server_list[(node_count**level)*j+i], capacity=random.randint(10, 50), weight=random.randint(1, 10))
         counter += 1
     return server_list, counter
 
 
-def generate_bcube_topology_graph(node_count=DEFAULT_NODE_COUNT, level=DEFAULT_LEVEL):
+def generate_bcube_topology_graph(node_count=DEFAULT_BCUBE_0_NODE_COUNT, level=DEFAULT_LEVEL):
     graph = nx.Graph()
     create_bcube(graph, node_count, level, 0)
     return graph
