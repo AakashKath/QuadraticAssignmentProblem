@@ -51,18 +51,9 @@ def generate_internet_topology_graph(file_path):
     print("Only gml/graphml files allowed in Internet Topology.")
 
 
-def create_clos_server(graph, previous_nodes, node_count, stage_no):
-    node_list = list()
-    are_egress_servers = True if graph.nodes() else False
+def create_clos_server(graph, node_count, edge_switches):
     for i in range(node_count):
-        node = f"{stage_no}_{i}"
-        node_list.append(node)
-        graph.add_node(node)
-        if are_egress_servers:
-            for pre in previous_nodes:
-                graph.add_edge(node, pre)
-    stage_no += 1
-    return node_list, stage_no
+        graph.add_edge(i, edge_switches[i%len(edge_switches)])
 
 
 def create_clos_stage(graph, previous_nodes, crossbars, stage_no):
@@ -86,8 +77,6 @@ def generate_clos_topology_graph(
     graph = nx.Graph()
     stage_no = 0
     node_list = list()
-    # Divide the servers into two parts
-    node_list, stage_no = create_clos_server(graph, node_list, math.floor(node_count/2), stage_no)
     # Create Ingress stage
     node_list, stage_no = create_clos_stage(graph, node_list, edge_crossbars, stage_no)
     # Create middle stages
@@ -95,7 +84,9 @@ def generate_clos_topology_graph(
         node_list, stage_no = create_clos_stage(graph, node_list, middle_stage_crossbars, stage_no)
     # Create egress stage
     node_list, stage_no = create_clos_stage(graph, node_list, edge_crossbars, stage_no)
-    create_clos_server(graph, node_list, math.ceil(node_count/2), stage_no)
+    edges_switches = [node for node in graph.nodes() if node.startswith("0_") or node.startswith(f"{stage_no - 1}_")]
+    # Create servers and connect to edge switches
+    create_clos_server(graph, node_count, edges_switches)
     return graph
 
 

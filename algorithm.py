@@ -74,7 +74,8 @@ def min_congestion(substrate_graph, flow, edge_demand, layout=None, path=None):
                 min_graph = flow_graph
                 min_substrate_graph = network_flow_graph
         except nx.exception.NetworkXUnfeasible:
-            print("No path found.")
+            # No path found.
+            pass
     if min_graph:
         drawing = DrawGraphs(min_substrate_graph, layout=layout, path=path, title=f"Flow: {flow}")
         drawing.add_flow(min_graph)
@@ -83,17 +84,21 @@ def min_congestion(substrate_graph, flow, edge_demand, layout=None, path=None):
     return False, max_capacity
 
 
-def min_congestion_star_workload(topology):
+def min_congestion_star_workload(topology, save_graph):
     workload_graph = generate_workload(node_demand=1, edge_demand=10)
     flow = len(workload_graph.nodes())-1
     edge_demand = workload_graph.get_edge_data("center", "leaf_0")["weight"]
     title = f"Substrate Graph[{flow}]"
+    path = None
+
     if topology == "internet":
         dir_path = "dataset/internet"
         internet_toplogy_files = [f for f in os.listdir(dir_path) if isfile(join(dir_path, f)) and f.endswith(".graphml")]
         for file_name in internet_toplogy_files:
             substrate_graph = generate_internet_topology_graph(join(dir_path, file_name))
-            found_flow, capacity = min_congestion(substrate_graph, flow, edge_demand, path=f"figures/internet/{file_name}.png")
+            if save_graph:
+                path = f"figures/internet/{file_name}.png"
+            found_flow, capacity = min_congestion(substrate_graph, flow, edge_demand, path=path)
             if not found_flow:
                 print(f"Couldn't find a min cost flow for the graph. Maximum flow: {capacity}")
     elif topology == "clos":
@@ -103,9 +108,11 @@ def min_congestion_star_workload(topology):
     elif topology == "xpander":
         substrate_graph = generate_xpander_topology_graph()
     elif topology == "random":
+        if save_graph:
+            path = f"figures/random/{title}.png"
         while True:
             substrate_graph = generate_random_graph()
-            found_flow, _ = min_congestion(substrate_graph, flow, edge_demand, path=f"figures/random/{title}.png")
+            found_flow, _ = min_congestion(substrate_graph, flow, edge_demand, path=path)
             if found_flow:
                 return
     else:
@@ -115,6 +122,7 @@ def min_congestion_star_workload(topology):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Minimum Congestion algorithm", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-t", "--topology", choices=ALLOWED_TOPOLOGIES, help="Topology", type=str.lower)
+    parser.add_argument("-sg", "--save_graph", help="Save Graph", action="store_true")
     args = parser.parse_args()
     config = vars(args)
-    min_congestion_star_workload(config.get("topology", None))
+    min_congestion_star_workload(config.get("topology", None), config.get("save_graph"))
