@@ -223,10 +223,12 @@ def save_flow_details(substrate_graph, flow_dict, flow, cost, path=None):
         write_to_csv(path, fields, data)
 
 
-def get_google_drive_folder_id():
+def get_google_drive_folder_id(topology):
     with open("config.json", "r") as config_file:
         config = json.load(config_file)
-    folder_id = config.get("folder_id", None)
+    folder_id = config.get(topology, None)
+    if not folder_id:
+        folder_id = config.get("folder_id", None)
     if not folder_id:
         print("Folder id missing from config.json file.")
     return folder_id

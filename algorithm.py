@@ -87,7 +87,7 @@ def min_congestion(substrate_graph, flow, edge_demand, layout=None, path=None):
     return False
 
 
-def min_congestion_star_workload(topology, save_graph, folder_id=None):
+def min_congestion_star_workload(topology, save_graph, save_drive=None):
     workload_graph = generate_workload(node_demand=1, edge_demand=10)
     flow = len(workload_graph.nodes())-1
     edge_demand = workload_graph.get_edge_data("center", "leaf_0")["weight"]
@@ -119,7 +119,8 @@ def min_congestion_star_workload(topology, save_graph, folder_id=None):
     else:
         print(f"We don't support {topology} topology right now.")
 
-    if folder_id:
+    if save_drive:
+        folder_id = get_google_drive_folder_id(topology)
         upload_to_google_drive(path, folder_id)
         shutil.rmtree("figures")
 
@@ -131,6 +132,4 @@ if __name__ == "__main__":
     parser.add_argument("-sd", "--save_drive", help="Save to Google Drive (Requires client_secrets.json)", action="store_true")
     args = parser.parse_args()
     config = vars(args)
-    if config.get("save_drive", False):
-        folder_id = get_google_drive_folder_id()
-    min_congestion_star_workload(config.get("topology", None), config.get("save_graph"), folder_id)
+    min_congestion_star_workload(config.get("topology", None), config.get("save_graph"), config.get("save_drive"))
