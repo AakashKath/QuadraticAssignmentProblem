@@ -1,10 +1,15 @@
+import csv
+import json
 import math
 import networkx as nx
 import os
 
 from functools import partial
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
 from matplotlib import pyplot as plt, animation
 from networkx.drawing.nx_pydot import graphviz_layout
+from oauth2client.service_account import ServiceAccountCredentials
 
 
 class DrawGraphs:
@@ -34,7 +39,7 @@ class DrawGraphs:
             directories = "/".join(self.path.split("/")[:-1])
             if not os.path.exists(directories):
                 os.makedirs(directories)
-            plt.savefig(self.path)
+            plt.savefig(f"{self.path}.png")
             plt.clf()
         else:
             plt.show()
@@ -153,3 +158,84 @@ def from_min_cost_flow(flow_dict, flow_graph):
                 G.add_edge(u, v, capacity=capacity, weight=weight)
                 total_cost += weight*capacity
     return G, total_cost
+
+
+def write_to_csv(file_name, fields, data):
+    with open(file_name, "a") as csv_file:
+        writer = csv.DictWriter(csv_file, fields)
+        writer.writeheader()
+        writer.writerows(data)
+
+
+def save_flow_details(substrate_graph, flow_dict, flow, cost, path=None):
+    if not path:
+        return
+
+    path = f"{path}.csv"
+
+    # Write flow, cost
+    with open(path, "w") as csv_file:
+        csv_file.write(f"Flow: {flow}\n")
+        csv_file.write(f"Cost: {cost}\n")
+
+    if substrate_graph:
+        with open(path, "a") as csv_file:
+            csv_file.write("\n\nSubstrate Node Data\n")
+
+        # Write Node data
+        fields = set()
+        data = list()
+        for source, details in substrate_graph.nodes(data=True):
+            fields.update(details.keys())
+            details.update({"source": source})
+            data.append(details)
+        write_to_csv(path, ["source"]+list(fields), data)
+
+        with open(path, "a") as csv_file:
+            csv_file.write("\n\nSubstrate Edge Data\n")
+
+        # Write Edge data
+        fields = set()
+        data = list()
+        substrate_data = nx.to_dict_of_dicts(substrate_graph)
+        for source, values in substrate_data.items():
+            for dest, details in values.items():
+                fields.update(details.keys())
+                details.update({"source": source, "destination": dest})
+                data.append(details)
+        write_to_csv(path, ["source", "destination"]+list(fields), data)
+
+    if flow_dict:
+        with open(path, "a") as csv_file:
+            csv_file.write("\n\nFlow Data\n")
+
+        # Write flow dict
+        fields = ["source", "destination", "capacity"]
+        data = list()
+        for source, values in flow_dict.items():
+            for dest, capacity in values.items():
+                data.append({"source": source, "destination": dest, "capacity": capacity})
+        write_to_csv(path, fields, data)
+
+
+def get_google_drive_folder_id():
+    with open("config.json", "r") as config_file:
+        config = json.load(config_file)
+    folder_id = config.get("folder_id", None)
+    if not folder_id:
+        print("Folder id missing from config.json file.")
+    return folder_id
+
+
+def upload_to_google_drive(path, folder_id):
+    gauth = GoogleAuth()
+    scope = ["https://www.googleapis.com/auth/drive",]
+    gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name("client_secrets.json", scope)
+    drive = GoogleDrive(gauth)
+    file_name = "_".join(path.split("/")[1:])
+    for extension in ["png", "csv"]:
+        if not (os.path.exists(f"{path}.{extension}") and os.path.isfile(f"{path}.{extension}")):
+            continue
+        gfile = drive.CreateFile({"title": f"{file_name}.{extension}", 'parents': [{'id': folder_id}]})
+        gfile.SetContentFile(f"{path}.{extension}")
+        gfile.Upload()

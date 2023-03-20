@@ -1,12 +1,13 @@
 import argparse
 import networkx as nx
 import os
+import uuid
 
 from datetime import datetime
 from math import inf, floor
 from os.path import isfile, join
 
-from helpers import DrawGraphs, from_min_cost_flow
+from helpers import DrawGraphs, from_min_cost_flow, save_flow_details, upload_to_google_drive, get_google_drive_folder_id
 from substrate import (
     generate_random_graph,
     generate_internet_topology_graph,
@@ -55,7 +56,8 @@ def generate_network_flow(graph, source, node_demand, edge_demand):
 def min_congestion(substrate_graph, flow, edge_demand, layout=None, path=None):
     min_cost = inf
     min_graph = None
-    min_substrate_graph = None
+    min_flow_dict = None
+    min_substrate_graph = substrate_graph
     for source in list(substrate_graph.nodes()):
         if substrate_graph.nodes().get(source).get("is_switch", False):
             continue
@@ -71,9 +73,11 @@ def min_congestion(substrate_graph, flow, edge_demand, layout=None, path=None):
                 min_cost = cost
                 min_graph = flow_graph
                 min_substrate_graph = network_flow_graph
+                min_flow_dict = flow_dict
         except nx.exception.NetworkXUnfeasible:
             # No path found.
             pass
+    save_flow_details(min_substrate_graph, min_flow_dict, flow, min_cost, path)
     if min_graph:
         drawing = DrawGraphs(min_substrate_graph, layout=layout, path=path, title=f"Flow: {flow}")
         drawing.add_flow(min_graph)
@@ -82,18 +86,19 @@ def min_congestion(substrate_graph, flow, edge_demand, layout=None, path=None):
     return False
 
 
-def min_congestion_star_workload(topology, save_graph):
+def min_congestion_star_workload(topology, save_graph, folder_id=None):
     workload_graph = generate_workload(node_demand=1, edge_demand=10)
     flow = len(workload_graph.nodes())-1
     edge_demand = workload_graph.get_edge_data("center", "leaf_0")["weight"]
-    path = f"figures/{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}_[{flow}].png" if save_graph else None
+    now = datetime.now()
+    path = f"figures/{now.strftime('%Y_%m_%d')}/{now.strftime('%H_%M_%S')}_[{flow}]_{uuid.uuid4()}" if save_graph else None
 
     if topology == "internet":
         dir_path = "dataset/internet"
         internet_toplogy_files = [f for f in os.listdir(dir_path) if isfile(join(dir_path, f)) and f.endswith(".graphml")]
         for file_name in internet_toplogy_files:
             substrate_graph = generate_internet_topology_graph(join(dir_path, file_name))
-            path = f"figures/{file_name}.png" if path else None
+            path = f"figures/{file_name}" if path else None
             min_congestion(substrate_graph, flow, edge_demand, path=path)
     elif topology == "clos":
         substrate_graph = generate_clos_topology_graph()
@@ -113,11 +118,17 @@ def min_congestion_star_workload(topology, save_graph):
     else:
         print(f"We don't support {topology} topology right now.")
 
+    if folder_id:
+        upload_to_google_drive(path, folder_id)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Minimum Congestion algorithm", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-t", "--topology", choices=ALLOWED_TOPOLOGIES, help="Topology", type=str.lower)
     parser.add_argument("-sg", "--save_graph", help="Save Graph", action="store_true")
+    parser.add_argument("-sd", "--save_drive", help="Save to Google Drive (Requires client_secrets.json)", action="store_true")
     args = parser.parse_args()
     config = vars(args)
-    min_congestion_star_workload(config.get("topology", None), config.get("save_graph"))
+    if config.get("save_drive", False):
+        folder_id = get_google_drive_folder_id()
+    min_congestion_star_workload(config.get("topology", None), config.get("save_graph"), folder_id)
