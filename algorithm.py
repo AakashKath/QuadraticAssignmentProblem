@@ -1,6 +1,7 @@
 import argparse
 import networkx as nx
 import os
+import shutil
 import uuid
 
 from datetime import datetime
@@ -98,7 +99,7 @@ def min_congestion_star_workload(topology, save_graph, folder_id=None):
         internet_toplogy_files = [f for f in os.listdir(dir_path) if isfile(join(dir_path, f)) and f.endswith(".graphml")]
         for file_name in internet_toplogy_files:
             substrate_graph = generate_internet_topology_graph(join(dir_path, file_name))
-            path = f"figures/{file_name}" if path else None
+            path = f"figures/{now.strftime('%Y_%m_%d')}/{now.strftime('%H_%M_%S')}_{file_name}_[{flow}]_{uuid.uuid4()}" if path else None
             min_congestion(substrate_graph, flow, edge_demand, path=path)
     elif topology == "clos":
         substrate_graph = generate_clos_topology_graph()
@@ -120,6 +121,7 @@ def min_congestion_star_workload(topology, save_graph, folder_id=None):
 
     if folder_id:
         upload_to_google_drive(path, folder_id)
+        shutil.rmtree("figures")
 
 
 if __name__ == "__main__":

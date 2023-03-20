@@ -36,9 +36,7 @@ class DrawGraphs:
 
     def draw(self):
         if self.path:
-            directories = "/".join(self.path.split("/")[:-1])
-            if not os.path.exists(directories):
-                os.makedirs(directories)
+            create_directories(self.path)
             plt.savefig(f"{self.path}.png")
             plt.clf()
         else:
@@ -145,6 +143,12 @@ class DrawGraphs:
                                                interval=1000, repeat=False, init_func=self.__init_animation)
 
 
+def create_directories(path):
+    directories = "/".join(path.split("/")[:-1])
+    if not os.path.exists(directories):
+        os.makedirs(directories)
+
+
 def from_min_cost_flow(flow_dict, flow_graph):
     G = nx.DiGraph()
     total_cost = 0
@@ -172,6 +176,7 @@ def save_flow_details(substrate_graph, flow_dict, flow, cost, path=None):
         return
 
     path = f"{path}.csv"
+    create_directories(path)
 
     # Write flow, cost
     with open(path, "w") as csv_file:
@@ -232,10 +237,9 @@ def upload_to_google_drive(path, folder_id):
     scope = ["https://www.googleapis.com/auth/drive",]
     gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name("client_secrets.json", scope)
     drive = GoogleDrive(gauth)
-    file_name = "_".join(path.split("/")[1:])
-    for extension in ["png", "csv"]:
-        if not (os.path.exists(f"{path}.{extension}") and os.path.isfile(f"{path}.{extension}")):
-            continue
-        gfile = drive.CreateFile({"title": f"{file_name}.{extension}", 'parents': [{'id': folder_id}]})
-        gfile.SetContentFile(f"{path}.{extension}")
+    filename_prefix = "_".join(path.split("/")[1:-1])
+    path = "/".join(path.split("/")[:-1])
+    for file in os.listdir(path):
+        gfile = drive.CreateFile({"title": f"{filename_prefix}_{file}", 'parents': [{'id': folder_id}]})
+        gfile.SetContentFile(f"{path}/{file}")
         gfile.Upload()
