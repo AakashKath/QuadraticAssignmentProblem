@@ -20,18 +20,17 @@ from workload import generate_workload
 
 ALLOWED_TOPOLOGIES = ["internet", "clos", "bcube", "xpander", "random"]
 
-def add_sink_node(flow_graph, substrate_graph, node_demand):
+def add_sink_node(flow_graph, substrate_graph, source, node_demand):
     flow_graph.add_node("sink", demand=node_demand)
     substrate_nodes = dict(substrate_graph.nodes(data=True))
     for u in flow_graph.nodes():
-        if u == "sink":
-            continue
-        if u != "source" and substrate_graph.nodes().get(u).get("is_switch", False):
+        if u == "sink" or substrate_graph.nodes().get(u, {}).get("is_switch", False):
             continue
         data = substrate_nodes.get(u, {})
         if u == "source":
-            # data.update({"capacity": data.get("capacity", 0)-1})
-            data.update({"capacity": 0}) # source-sink capacity set to 0 to avoid trivial path
+            data = substrate_nodes.get(source, {})
+            data.update({"capacity": data.get("capacity", 1)-1})
+            # data.update({"capacity": 0}) # source-sink capacity set to 0 to avoid trivial path
         flow_graph.add_edge(u, "sink", **data)
     return flow_graph
 
@@ -63,7 +62,7 @@ def min_congestion(substrate_graph, flow, edge_demand, layout=None, path=None):
         if substrate_graph.nodes().get(source).get("is_switch", False):
             continue
         network_flow_graph = generate_network_flow(substrate_graph, source, -flow, edge_demand)
-        network_flow_graph = add_sink_node(network_flow_graph, substrate_graph, flow)
+        network_flow_graph = add_sink_node(network_flow_graph, substrate_graph, source, flow)
         # if network_flow_graph.get_edge_data(source, "sink").get("capacity", 0)-1 >= flow:
         #     print("Encountered trivial case.")
         #     continue
