@@ -80,7 +80,7 @@ def min_congestion(substrate_graph, flow, edge_demand, layout=None, path=None):
             pass
     save_flow_details(min_substrate_graph, min_flow_dict, flow, min_cost, path)
     if min_graph:
-        drawing = DrawGraphs(min_substrate_graph, layout=layout, path=path, title=f"Flow: {flow}")
+        drawing = DrawGraphs(min_substrate_graph, with_labels=True, layout=layout, path=path, title=f"Flow: {flow}")
         drawing.add_flow(min_graph)
         drawing.draw()
         return True

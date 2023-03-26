@@ -102,12 +102,10 @@ class DrawGraphs:
                 continue
             values.update({"color": "k"})
 
-    def add_graph(self):
-        self.__add_figure_details()
-        self.__add_default_colors()
+    def __draw(self):
         labels = dict()
         if self.with_labels:
-            self.__draw_table()
+            # self.__draw_table()
             edge_color = nx.get_edge_attributes(self.graph, "color").values()
             if edge_color:
                 labels.update({"edge_color": edge_color})
@@ -115,6 +113,11 @@ class DrawGraphs:
             if node_color:
                 labels.update({"node_color": node_color})
         nx.draw(self.graph, self.pos, with_labels=True, **labels)
+
+    def add_graph(self):
+        self.__add_figure_details()
+        self.__add_default_colors()
+        self.__draw()
 
     def __init_animation(self):
         pass
@@ -127,7 +130,7 @@ class DrawGraphs:
             self.graph.remove_edge(v, u)
         self.graph[u][v]["color"] = "r"
         colored_edges.update({(u, v): values.get("capacity")})
-        nx.draw(self.graph, self.pos, with_labels=True, edge_color=nx.get_edge_attributes(self.graph, "color").values())
+        self.__draw()
         if colored_edges:
             nx.draw_networkx_edge_labels(self.graph, self.pos, edge_labels=colored_edges, font_color="r")
 
