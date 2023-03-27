@@ -1,6 +1,7 @@
 import math
 import networkx as nx
 import random
+import re
 
 from itertools import combinations, groupby
 
@@ -37,8 +38,13 @@ def generate_internet_topology_graph(file_path):
         return nx.read_gml(file_path)
     if file_path.endswith(".graphml"):
         graph = nx.read_graphml(file_path)
+        # Mark switches
+        for u, values in graph.nodes(data=True):
+            if values.get("types") and any(re.compile(r"\b({0})\b".format(word), flags=re.IGNORECASE).match(values.get("types")) for word in ["router", "switch"]):
+                graph.nodes().get(u).update({"is_switch": True})
+        # Add capacity
         for u, v, values in graph.edges(data=True):
-            raw_speed = values.get("LinkSpeedRaw", 0)/1000
+            raw_speed = values.get("LinkSpeedRaw", 5000000000)/1000
             # Edge capacity set to link raw speed
             values.update({"capacity": raw_speed, "weight": raw_speed})
             raw_speed = max(dict(graph.nodes(data=True)).get(u).get("capacity", 0), raw_speed)
