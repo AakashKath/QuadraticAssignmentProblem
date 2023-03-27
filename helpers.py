@@ -237,14 +237,50 @@ def get_google_drive_folder_id(topology):
     return folder_id
 
 
-def upload_to_google_drive(path, folder_id):
+def connect_to_gdrive():
     gauth = GoogleAuth()
     scope = ["https://www.googleapis.com/auth/drive",]
     gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name("client_secrets.json", scope)
-    drive = GoogleDrive(gauth)
+    return GoogleDrive(gauth)
+
+
+def upload_to_google_drive(path, folder_id):
+    drive = connect_to_gdrive()
     filename_prefix = "_".join(path.split("/")[1:-1])
     path = "/".join(path.split("/")[:-1])
     for file in os.listdir(path):
         gfile = drive.CreateFile({"title": f"{filename_prefix}_{file}", 'parents': [{'id': folder_id}]})
         gfile.SetContentFile(f"{path}/{file}")
         gfile.Upload()
+
+
+def read_from_google_drive(folder_id):
+    drive = connect_to_gdrive()
+    files = drive.ListFile({'q': f"'{folder_id}' in parents and trashed=false"}).GetList()
+    min_cost = math.inf
+    min_files = list()
+    for file in files:
+        filename = file.get("title")
+        if filename.endswith(".csv"):
+            file_id = file.get("id")
+            gfile = drive.CreateFile({"id": file_id})
+            resp = gfile.GetContentString()
+            cost = resp.split("\n")[1].split(": ")[1]
+            if cost == "inf":
+                continue
+            cost = int(cost)
+            if cost == min_cost:
+                min_files.append(filename)
+            if cost < min_cost:
+                min_files = [filename, ]
+    return min_files
+
+
+def fetch_minimum_costs(folder_ids = None):
+    min_flow_dict = dict()
+    if not folder_ids:
+        with open("config.json", "r") as config_file:
+            folder_ids = json.load(config_file)
+    for flow, folder_id in folder_ids.items():
+        min_flow_dict.update({flow: read_from_google_drive(folder_id)})
+    return min_flow_dict
