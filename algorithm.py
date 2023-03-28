@@ -89,9 +89,12 @@ def min_congestion(substrate_graph, flow, edge_demand):
         except nx.exception.NetworkXUnfeasible:
             # No path found.
             pass
-    # if min_graph:
-    #     min_graph = nx.relabel_nodes(min_graph, {"source": min_source})
-    return min_substrate_graph, min_graph, min_cost
+    if min_graph:
+        min_graph = nx.relabel_nodes(min_graph, {"source": min_source})
+        min_substrate_graph = nx.relabel_nodes(
+            min_substrate_graph, {"source": f"source_{min_source}"}
+        )
+    return min_substrate_graph, min_graph, min_cost, min_source
 
 
 def get_substrate_graphs(topology):
@@ -145,36 +148,37 @@ def update_substrate_graph(graph, min_graph):
 
 def min_congestion_star_workload(topology, save_graph, leaf_counts, save_drive=None):
     substrate_graphs = get_substrate_graphs(topology)
-    folder_path = f"figures/{datetime.now().strftime('%Y_%m_%d')}"
+    folder_path = (
+        f"figures/{datetime.now().strftime('%Y_%m_%d')}" if save_graph else None
+    )
     for title, graph in substrate_graphs:
-        for lc in leaf_counts:
+        added_flows = list()
+        graph_path = (
+            f"{folder_path}/{title}_{datetime.now().strftime('%H_%M_%S')}"
+            if folder_path
+            else None
+        )
+        drawing = DrawGraphs(graph, with_labels=True, path=graph_path)
+        for i, lc in enumerate(leaf_counts):
             # Hard-coding workload graph, as star workload is trivial to visualize
             # workload_graph = generate_workload(edge_demand=1, node_count=lc)
             # flow = len(workload_graph.nodes()) - 1
             # edge_demand = list(nx.get_edge_attributes(workload_graph, "weight").values())[0]
             flow = lc
             edge_demand = 1
-            path = (
-                f"{folder_path}/{datetime.now().strftime('%H_%M_%S')}_{title}_{flow}"
-                if save_graph
-                else None
-            )
-            min_substrate_graph, min_graph, min_cost = min_congestion(
+            path = f"{graph_path}_{i}_{flow}" if graph_path else None
+            min_substrate_graph, min_graph, cost, source = min_congestion(
                 graph, flow, edge_demand
             )
-            save_flow_details(min_substrate_graph, min_graph, flow, min_cost, path)
+            save_flow_details(min_substrate_graph, min_graph, flow, cost, path)
             if min_graph:
-                drawing = DrawGraphs(
-                    min_substrate_graph,
-                    with_labels=True,
-                    path=path,
-                    title=f"Flow: {flow}",
-                )
-                drawing.add_flow(min_graph)
-                drawing.draw()
-                # update_substrate_graph(graph, min_graph)
+                added_flows.append(flow)
+                drawing.add_flow(min_graph, source)
+                update_substrate_graph(graph, min_graph)
             else:
                 print("Couldn't fit workload in substrate graph.")
+        drawing.add_title(title=f"Flow: {added_flows}")
+        drawing.draw()
 
     if save_drive:
         folder_id = get_google_drive_folder_id(topology)

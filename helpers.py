@@ -3,6 +3,7 @@ import json
 import math
 import networkx as nx
 import os
+import random
 
 from functools import partial
 from pydrive.auth import GoogleAuth
@@ -21,8 +22,10 @@ class DrawGraphs:
         self.title = title
         self.with_labels = with_labels
         self.figure = None
-        self.ani = None
+        self.ani = list()
         self.path = path
+        self.cmap = plt.cm.get_cmap("hsv", 50)
+        self.flow_counter = 0
         self.__generate_graph_position(layout)
         self.add_graph()
 
@@ -43,7 +46,9 @@ class DrawGraphs:
             plt.show()
         self.figure_number = 0
 
-    def __add_title(self):
+    def add_title(self, title=None):
+        if title:
+            self.title = title
         plt.title(self.title)
 
     def __add_figure_details(self):
@@ -51,7 +56,7 @@ class DrawGraphs:
         self.figure = plt.figure(self.figure_number, figsize=(20, 10))
         if not self.title:
             self.title = f"Figure {self.figure_number}"
-        self.__add_title()
+        self.add_title()
 
     def __default_values(self, key):
         if key.lower() in ["capacity", "demand"]:
@@ -147,38 +152,34 @@ class DrawGraphs:
     def __init_animation(self):
         pass
 
-    def __add_flow(self, updated_details, colored_edges, frame):
+    def __add_flow(self, updated_details, color, frame):
+        u, v = updated_details[frame]
+        if "sink" not in [u, v]:
+            self.graph[u][v]["color"] = color
         self.figure.clear()
-        self.__add_title()
-        u, v, values = updated_details[frame]
-        if self.graph.has_edge(v, u):
-            self.graph.remove_edge(v, u)
-        self.graph[u][v]["color"] = "r"
-        colored_edges.update({(u, v): values.get("capacity")})
+        self.add_title()
         self.__draw()
-        if colored_edges:
-            nx.draw_networkx_edge_labels(
-                self.graph, self.pos, edge_labels=colored_edges, font_color="r"
-            )
 
-    def add_flow(self, flow_graph):
-        updated_details = [
-            (u, v, values) for u, v, values in flow_graph.edges(data=True)
-        ]
-        colored_edges = dict()
+    def add_flow(self, flow_graph, source):
+        color = self.cmap(self.flow_counter)
+        updated_details = list(flow_graph.edges())
+        self.graph.nodes().get(source).update({"color": color})
         frames = len(nx.get_edge_attributes(flow_graph, "capacity"))
         if self.path:
             for frame in range(frames):
-                self.__add_flow(updated_details, colored_edges, frame)
+                self.__add_flow(updated_details, color, frame)
         else:
-            self.ani = animation.FuncAnimation(
-                self.figure,
-                partial(self.__add_flow, updated_details, colored_edges),
-                frames=frames,
-                interval=1000,
-                repeat=False,
-                init_func=self.__init_animation,
+            self.ani.append(
+                animation.FuncAnimation(
+                    self.figure,
+                    partial(self.__add_flow, updated_details, color),
+                    frames=frames,
+                    interval=1000,
+                    repeat=False,
+                    init_func=self.__init_animation,
+                )
             )
+        self.flow_counter += 1
 
 
 def create_directories(path):
