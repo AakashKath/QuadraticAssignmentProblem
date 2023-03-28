@@ -4,10 +4,11 @@ import random
 
 DEFAULT_NODE_COUNT = random.randint(1, 10)
 
-def generate_workload(node_demand, edge_demand, node_count=DEFAULT_NODE_COUNT):
+
+def generate_workload(edge_demand, node_count=DEFAULT_NODE_COUNT):
     G = nx.Graph()
     G.add_node("center", weight=0)
-    G.add_nodes_from([f"leaf_{i}" for i in range(node_count)], weight=node_demand)
+    G.add_nodes_from([f"leaf_{i}" for i in range(node_count)])
     edge_list = list()
     for i in range(node_count):
         edge_list.append(("center", f"leaf_{i}", edge_demand))

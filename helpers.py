@@ -22,7 +22,7 @@ class DrawGraphs:
         self.with_labels = with_labels
         self.figure = None
         self.ani = None
-        self.path=path
+        self.path = path
         self.__generate_graph_position(layout)
         self.add_graph()
 
@@ -59,7 +59,7 @@ class DrawGraphs:
         if key.lower() in ["cost", "weight"]:
             return math.inf
         return -1
-    
+
     def __get_attributes(self, entity):
         try:
             return list(set(sum([list(v.keys()) for _, v in entity.items()], [])))
@@ -74,17 +74,42 @@ class DrawGraphs:
 
     def __draw_table(self):
         node_data = dict(self.graph.nodes(data=True))
-        attributes = list(set(self.__get_attributes(node_data)) - set(self.excluded_attributes))
+        attributes = list(
+            set(self.__get_attributes(node_data)) - set(self.excluded_attributes)
+        )
         if attributes:
-            plt.table([(["node", ] + attributes), ] + [[node, ]+self.__extract_attribute_values(attributes, values) 
-                                                         for node, values in node_data.items()])
+            plt.table(
+                [
+                    (
+                        [
+                            "node",
+                        ]
+                        + attributes
+                    ),
+                ]
+                + [
+                    [
+                        node,
+                    ]
+                    + self.__extract_attribute_values(attributes, values)
+                    for node, values in node_data.items()
+                ]
+            )
 
         edge_data = self.graph.edges(data=True)
-        attributes = list(set(self.__get_attributes(edge_data)) - set(self.excluded_attributes))
+        attributes = list(
+            set(self.__get_attributes(edge_data)) - set(self.excluded_attributes)
+        )
         if attributes:
-            plt.table([(["start_node", "end_node"] + attributes), ] + 
-                      [[u, v]+self.__extract_attribute_values(attributes, values) 
-                       for u, v, values in edge_data])
+            plt.table(
+                [
+                    (["start_node", "end_node"] + attributes),
+                ]
+                + [
+                    [u, v] + self.__extract_attribute_values(attributes, values)
+                    for u, v, values in edge_data
+                ]
+            )
 
     def __add_default_colors(self):
         # Node colors
@@ -132,18 +157,28 @@ class DrawGraphs:
         colored_edges.update({(u, v): values.get("capacity")})
         self.__draw()
         if colored_edges:
-            nx.draw_networkx_edge_labels(self.graph, self.pos, edge_labels=colored_edges, font_color="r")
+            nx.draw_networkx_edge_labels(
+                self.graph, self.pos, edge_labels=colored_edges, font_color="r"
+            )
 
     def add_flow(self, flow_graph):
-        updated_details = [(u, v, values) for u, v, values in flow_graph.edges(data=True)]
+        updated_details = [
+            (u, v, values) for u, v, values in flow_graph.edges(data=True)
+        ]
         colored_edges = dict()
         frames = len(nx.get_edge_attributes(flow_graph, "capacity"))
         if self.path:
             for frame in range(frames):
                 self.__add_flow(updated_details, colored_edges, frame)
         else:
-            self.ani = animation.FuncAnimation(self.figure, partial(self.__add_flow, updated_details, colored_edges), frames=frames, 
-                                               interval=1000, repeat=False, init_func=self.__init_animation)
+            self.ani = animation.FuncAnimation(
+                self.figure,
+                partial(self.__add_flow, updated_details, colored_edges),
+                frames=frames,
+                interval=1000,
+                repeat=False,
+                init_func=self.__init_animation,
+            )
 
 
 def create_directories(path):
@@ -163,7 +198,7 @@ def from_min_cost_flow(flow_dict, flow_graph):
             if capacity != 0:
                 weight = substrate_edges[u, v]["weight"]
                 G.add_edge(u, v, capacity=capacity, weight=weight)
-                total_cost += weight*capacity
+                total_cost += weight * capacity
     return G, total_cost
 
 
@@ -174,7 +209,7 @@ def write_to_csv(file_name, fields, data):
         writer.writerows(data)
 
 
-def save_flow_details(substrate_graph, flow_dict, flow, cost, path=None):
+def save_flow_details(substrate_graph, flow_graph, flow, cost, path=None):
     if not path:
         return
 
@@ -195,9 +230,8 @@ def save_flow_details(substrate_graph, flow_dict, flow, cost, path=None):
         data = list()
         for source, details in substrate_graph.nodes(data=True):
             fields.update(details.keys())
-            details.update({"source": source})
-            data.append(details)
-        write_to_csv(path, ["source"]+list(fields), data)
+            data.append({"source": source, **details})
+        write_to_csv(path, ["source"] + list(fields), data)
 
         with open(path, "a") as csv_file:
             csv_file.write("\n\nSubstrate Edge Data\n")
@@ -209,20 +243,20 @@ def save_flow_details(substrate_graph, flow_dict, flow, cost, path=None):
         for source, values in substrate_data.items():
             for dest, details in values.items():
                 fields.update(details.keys())
-                details.update({"source": source, "destination": dest})
-                data.append(details)
-        write_to_csv(path, ["source", "destination"]+list(fields), data)
+                data.append({"source": source, "destination": dest, **details})
+        write_to_csv(path, ["source", "destination"] + list(fields), data)
 
-    if flow_dict:
+    if flow_graph:
         with open(path, "a") as csv_file:
             csv_file.write("\n\nFlow Data\n")
 
         # Write flow dict
-        fields = ["source", "destination", "capacity"]
+        fields = ["source", "destination", "capacity", "weight"]
         data = list()
-        for source, values in flow_dict.items():
-            for dest, capacity in values.items():
-                data.append({"source": source, "destination": dest, "capacity": capacity})
+        flow_data = nx.to_dict_of_dicts(flow_graph)
+        for source, values in flow_data.items():
+            for dest, details in values.items():
+                data.append({"source": source, "destination": dest, **details})
         write_to_csv(path, fields, data)
 
 
@@ -239,24 +273,31 @@ def get_google_drive_folder_id(topology):
 
 def connect_to_gdrive():
     gauth = GoogleAuth()
-    scope = ["https://www.googleapis.com/auth/drive",]
-    gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name("client_secrets.json", scope)
+    scope = [
+        "https://www.googleapis.com/auth/drive",
+    ]
+    gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
+        "client_secrets.json", scope
+    )
     return GoogleDrive(gauth)
 
 
 def upload_to_google_drive(path, folder_id):
     drive = connect_to_gdrive()
-    filename_prefix = "_".join(path.split("/")[1:-1])
-    path = "/".join(path.split("/")[:-1])
+    filename_prefix = "_".join(path.split("/")[1:])
     for file in os.listdir(path):
-        gfile = drive.CreateFile({"title": f"{filename_prefix}_{file}", 'parents': [{'id': folder_id}]})
+        gfile = drive.CreateFile(
+            {"title": f"{filename_prefix}_{file}", "parents": [{"id": folder_id}]}
+        )
         gfile.SetContentFile(f"{path}/{file}")
         gfile.Upload()
 
 
 def read_from_google_drive(folder_id):
     drive = connect_to_gdrive()
-    files = drive.ListFile({'q': f"'{folder_id}' in parents and trashed=false"}).GetList()
+    files = drive.ListFile(
+        {"q": f"'{folder_id}' in parents and trashed=false"}
+    ).GetList()
     min_cost = math.inf
     min_files = list()
     for file in files:
@@ -272,11 +313,13 @@ def read_from_google_drive(folder_id):
             if cost == min_cost:
                 min_files.append(filename)
             if cost < min_cost:
-                min_files = [filename, ]
+                min_files = [
+                    filename,
+                ]
     return min_files
 
 
-def fetch_minimum_costs(folder_ids = None):
+def fetch_minimum_costs(folder_ids=None):
     min_flow_dict = dict()
     if not folder_ids:
         with open("config.json", "r") as config_file:
