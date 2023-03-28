@@ -168,7 +168,7 @@ def min_congestion_star_workload(topology, save_graph, leaf_counts, save_drive=N
             edge_demand = 1
             path = f"{graph_path}_{i}_{flow}" if graph_path else None
             min_substrate_graph, min_graph, cost, source = min_congestion(
-                graph, flow, edge_demand
+                graph.copy(), flow, edge_demand
             )
             save_flow_details(min_substrate_graph, min_graph, flow, cost, path)
             if min_graph:
