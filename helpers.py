@@ -152,7 +152,7 @@ class DrawGraphs:
         color = self.cmap(self.flow_counter)
         updated_details = list(flow_graph.edges())
         self.graph.nodes().get(source).update({"color": color})
-        frames = len(nx.get_edge_attributes(flow_graph, "capacity"))
+        frames = len(flow_graph.edges())
         if self.path:
             for frame in range(frames):
                 self.__add_flow(updated_details, color, frame)
