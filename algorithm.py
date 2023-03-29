@@ -7,6 +7,7 @@ from collections import Counter
 from datetime import datetime
 from math import inf, floor, exp
 from os.path import isfile, join
+from pulp import LpProblem, LpMaximize, LpVariable, lpSum
 
 from constants import ALLOWED_TOPOLOGIES, ALLOWED_VARIANTS, MWU_FACTOR, GAMMA, RHO2
 from helpers import (
@@ -65,6 +66,13 @@ def generate_network_flow(graph, source, node_demand, edge_demand):
     G.nodes().get(source).update({"demand": node_demand})
     G = nx.relabel_nodes(G, {source: "source"})
     return G
+
+
+def update_flow_graph(graph):
+    for u, v, values in graph.edges(data=True):
+        if v == "sink":
+            graph.nodes().get(u).update(values)
+    graph.remove_node("sink")
 
 
 def min_congestion(substrate_graph, flow, edge_demand):
@@ -158,6 +166,38 @@ def update_substrate_graph(graph, min_graph, variant="default"):
                 "weight": update_weight(variant, element, values),
             }
         )
+
+
+def solve_lp(graph, workload_map):
+    obj = list()
+    variables = dict()
+    model = LpProblem(name="workload_mapping", sense=LpMaximize)
+    for u, v, values in graph.edges(data=True):
+        e_var = LpVariable(name=f"{u}-{v}", lowBound=0, cat="Integer")
+        variables.update({f"{u}-{v}": e_var})
+        obj.append(-values.get("capacity", 0) * e_var)
+    for u, values in graph.nodes(data=True):
+        n_var = LpVariable(name=f"{u}", lowBound=0, cat="Integer")
+        variables.update({f"{u}": n_var})
+        obj.append(-values.get("capacity", 0) * n_var)
+    for workload, all_mappings in workload_map:
+        zi = LpVariable(name=f"z_{workload}", lowBound=0, cat="Integer")
+        variables.update({f"z_{workload}": zi})
+        obj.append(zi)
+        for idx, mapping in enumerate(all_mappings):
+            mapping_expression = 0
+            for u, values in mapping.nodes(data=True):
+                if values.get("load", 0) > 0:
+                    mapping_expression += values.get("load") * variables.get(f"{u}")
+            for u, v, values in mapping.edges(data=True):
+                if values.get("load", 0) > 0:
+                    var = variables.get(f"{u}-{v}")
+                    if var is None:
+                        var = variables.get(f"{v}-{u}")
+                    mapping_expression += values.get("load") * var
+            model += (mapping_expression >= zi, f"c_{workload}_{idx}")
+    model += lpSum(obj)
+    status = model.solve()
 
 
 def min_congestion_star_workload(
