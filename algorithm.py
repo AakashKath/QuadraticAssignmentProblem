@@ -5,10 +5,10 @@ import shutil
 
 from collections import Counter
 from datetime import datetime
-from math import inf, floor
+from math import inf, floor, exp
 from os.path import isfile, join
 
-from constants import ALLOWED_TOPOLOGIES, ALLOWED_VARIANTS, MWU_FACTOR
+from constants import ALLOWED_TOPOLOGIES, ALLOWED_VARIANTS, MWU_FACTOR, GAMMA, RHO2
 from helpers import (
     DrawGraphs,
     from_min_cost_flow,
@@ -37,6 +37,7 @@ def add_sink_node(flow_graph, substrate_graph, source, node_demand):
             data = substrate_nodes.get(source, {})
             data.update({"capacity": data.get("capacity", 1) - 1})
             # data.update({"capacity": 0}) # source-sink capacity set to 0 to avoid trivial path
+        data.update({"capacity": data.get("capacity", 0) - sum(data.get("load", [0]))})
         flow_graph.add_edge(u, "sink", **data)
     return flow_graph
 
@@ -49,7 +50,14 @@ def generate_network_flow(graph, source, node_demand, edge_demand):
         else:
             G.add_node(u)
     for u, v, kwargs in graph.edges(data=True):
-        kwargs.update({"capacity": floor(kwargs.get("capacity", 0) / edge_demand)})
+        kwargs.update(
+            {
+                "capacity": floor(
+                    (kwargs.get("capacity", 0) - sum(kwargs.get("load", [0])))
+                    / edge_demand
+                )
+            }
+        )
         if source != v:
             G.add_edge(u, v, **kwargs)
         if source != u:
@@ -124,27 +132,32 @@ def get_substrate_graphs(topology):
     return substrate_graphs
 
 
-def update_substrate_graph(graph, min_graph, variant="default"):
+def update_weight(variant, element, values):
+    weight = element.get("weight")
     if variant == "default":
-        for u, v, values in min_graph.edges(data=True):
-            if v == "sink":
-                node = graph.nodes().get(u)
-                node.update(
-                    {
-                        "weight": node.get("weight") * (1 + MWU_FACTOR),
-                        "capacity": node.get("capacity") - values.get("capacity"),
-                    }
-                )
-            else:
-                edge = graph.edges()[u, v]
-                edge.update(
-                    {
-                        "weight": edge.get("weight") * (1 + MWU_FACTOR),
-                        "capacity": edge.get("capacity") - values.get("capacity"),
-                    }
-                )
+        weight = weight * (1 + MWU_FACTOR)
     elif variant == "bansal":
-        pass
+        capacity = element.get("capacity")
+        load = element.get("load")
+        # weight = (gamma/B*ce)sum(exp(gamma*load(i, h)/B*ce))
+        weight = (GAMMA / RHO2 * capacity) * sum(
+            [exp(l / RHO2 * capacity) for l in load]
+        )
+    return weight
+
+
+def update_substrate_graph(graph, min_graph, variant="default"):
+    for u, v, values in min_graph.edges(data=True):
+        if v == "sink":
+            element = graph.nodes().get(u)
+        else:
+            element = graph.edges()[u, v]
+        element.update(
+            {
+                "load": element.get("load") + [values.get("load")],
+                "weight": update_weight(variant, element, values),
+            }
+        )
 
 
 def min_congestion_star_workload(

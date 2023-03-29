@@ -18,6 +18,25 @@ from constants import (
 )
 
 
+def append_load(generator):
+    def wrapper():
+        graph = generator()
+        nx.set_node_attributes(
+            graph,
+            [0],
+            "load",
+        )
+        nx.set_edge_attributes(
+            graph,
+            [0],
+            "load",
+        )
+        return graph
+
+    return wrapper
+
+
+@append_load
 def generate_random_graph(
     node_count=DEFAULT_NODE_COUNT, probability=DEFAULT_PROBABILITY
 ):
@@ -44,6 +63,7 @@ def generate_random_graph(
     return G
 
 
+@append_load
 def generate_internet_topology_graph(file_path):
     if file_path.endswith(".gml"):
         return nx.read_gml(file_path)
@@ -100,6 +120,7 @@ def create_clos_stage(graph, previous_nodes, crossbars, stage_no):
     return node_list, stage_no
 
 
+@append_load
 def generate_clos_topology_graph(
     node_count=DEFAULT_NODE_COUNT,
     middle_stage_crossbars=DEFAULT_MIDDLE_STAGE_COUNT,
@@ -179,6 +200,7 @@ def create_bcube(graph, node_count, level, counter):
     return server_list, counter
 
 
+@append_load
 def generate_bcube_topology_graph(
     node_count=DEFAULT_BCUBE_0_NODE_COUNT, level=DEFAULT_LEVEL
 ):
@@ -213,6 +235,7 @@ def lift_graph(graph, lift):
     return graph
 
 
+@append_load
 def generate_xpander_topology_graph(
     node_count=DEFAULT_NODE_COUNT,
     servers_per_rack=DEFAULT_SERVERS_PER_RACK,

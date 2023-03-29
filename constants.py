@@ -1,6 +1,8 @@
 ALLOWED_TOPOLOGIES = ["internet", "clos", "bcube", "xpander", "random"]
 ALLOWED_VARIANTS = ["default", "bansal"]
 MWU_FACTOR = 0.5
+GAMMA = 0.5
+RHO2 = 1
 
 DEFAULT_NODE_COUNT = 10
 DEFAULT_PROBABILITY = 0.5

@@ -84,19 +84,9 @@ class DrawGraphs:
         )
         if attributes:
             plt.table(
-                [
-                    (
-                        [
-                            "node",
-                        ]
-                        + attributes
-                    ),
-                ]
+                [(["node"] + attributes)]
                 + [
-                    [
-                        node,
-                    ]
-                    + self.__extract_attribute_values(attributes, values)
+                    [node] + self.__extract_attribute_values(attributes, values)
                     for node, values in node_data.items()
                 ]
             )
@@ -107,9 +97,7 @@ class DrawGraphs:
         )
         if attributes:
             plt.table(
-                [
-                    (["start_node", "end_node"] + attributes),
-                ]
+                [(["start_node", "end_node"] + attributes)]
                 + [
                     [u, v] + self.__extract_attribute_values(attributes, values)
                     for u, v, values in edge_data
@@ -195,11 +183,11 @@ def from_min_cost_flow(flow_dict, flow_graph):
     for node in flow_dict.keys():
         G.add_node(node)
     for u, values in flow_dict.items():
-        for v, capacity in values.items():
-            if capacity != 0:
+        for v, load in values.items():
+            if load != 0:
                 weight = substrate_edges[u, v]["weight"]
-                G.add_edge(u, v, capacity=capacity, weight=weight)
-                total_cost += weight * capacity
+                G.add_edge(u, v, load=load, weight=weight)
+                total_cost += weight * load
     return G, total_cost
 
 
@@ -252,7 +240,7 @@ def save_flow_details(substrate_graph, flow_graph, flow, cost, path=None):
             csv_file.write("\n\nFlow Data\n")
 
         # Write flow dict
-        fields = ["source", "destination", "capacity", "weight"]
+        fields = ["source", "destination", "capacity", "weight", "load"]
         data = list()
         flow_data = nx.to_dict_of_dicts(flow_graph)
         for source, values in flow_data.items():
@@ -274,9 +262,7 @@ def get_google_drive_folder_id(topology):
 
 def connect_to_gdrive():
     gauth = GoogleAuth()
-    scope = [
-        "https://www.googleapis.com/auth/drive",
-    ]
+    scope = ["https://www.googleapis.com/auth/drive"]
     gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
         "client_secrets.json", scope
     )
@@ -314,9 +300,7 @@ def read_from_google_drive(folder_id):
             if cost == min_cost:
                 min_files.append(filename)
             if cost < min_cost:
-                min_files = [
-                    filename,
-                ]
+                min_files = [filename]
     return min_files
 
 
