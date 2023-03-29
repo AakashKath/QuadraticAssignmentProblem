@@ -8,6 +8,7 @@ from datetime import datetime
 from math import inf, floor
 from os.path import isfile, join
 
+from constants import ALLOWED_TOPOLOGIES, ALLOWED_VARIANTS, MWU_FACTOR
 from helpers import (
     DrawGraphs,
     from_min_cost_flow,
@@ -23,9 +24,6 @@ from substrate import (
     generate_xpander_topology_graph,
 )
 from workload import generate_workload
-
-ALLOWED_TOPOLOGIES = ["internet", "clos", "bcube", "xpander", "random"]
-MWU_FACTOR = 0.5
 
 
 def add_sink_node(flow_graph, substrate_graph, source, node_demand):
@@ -126,27 +124,32 @@ def get_substrate_graphs(topology):
     return substrate_graphs
 
 
-def update_substrate_graph(graph, min_graph):
-    for u, v, values in min_graph.edges(data=True):
-        if v == "sink":
-            node = graph.nodes().get(u)
-            node.update(
-                {
-                    "weight": node.get("weight") * (1 + MWU_FACTOR),
-                    "capacity": node.get("capacity") - values.get("capacity"),
-                }
-            )
-        else:
-            edge = graph.edges()[u, v]
-            edge.update(
-                {
-                    "weight": edge.get("weight") * (1 + MWU_FACTOR),
-                    "capacity": edge.get("capacity") - values.get("capacity"),
-                }
-            )
+def update_substrate_graph(graph, min_graph, variant="default"):
+    if variant == "default":
+        for u, v, values in min_graph.edges(data=True):
+            if v == "sink":
+                node = graph.nodes().get(u)
+                node.update(
+                    {
+                        "weight": node.get("weight") * (1 + MWU_FACTOR),
+                        "capacity": node.get("capacity") - values.get("capacity"),
+                    }
+                )
+            else:
+                edge = graph.edges()[u, v]
+                edge.update(
+                    {
+                        "weight": edge.get("weight") * (1 + MWU_FACTOR),
+                        "capacity": edge.get("capacity") - values.get("capacity"),
+                    }
+                )
+    elif variant == "bansal":
+        pass
 
 
-def min_congestion_star_workload(topology, save_graph, leaf_counts, save_drive=None):
+def min_congestion_star_workload(
+    topology, leaf_counts, variant, save_graph, save_drive
+):
     substrate_graphs = get_substrate_graphs(topology)
     folder_path = (
         f"figures/{datetime.now().strftime('%Y_%m_%d')}" if save_graph else None
@@ -174,7 +177,7 @@ def min_congestion_star_workload(topology, save_graph, leaf_counts, save_drive=N
             if min_graph:
                 added_flows.append(flow)
                 drawing.add_flow(min_graph, source)
-                update_substrate_graph(graph, min_graph)
+                update_substrate_graph(graph, min_graph, variant=variant)
             else:
                 print("Couldn't fit workload in substrate graph.")
         drawing.add_title(title=f"Flow: {added_flows}")
@@ -204,11 +207,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "-lc", "--leaf_counts", nargs="+", help="Number of workloads to fit.", type=int
     )
+    parser.add_argument(
+        "-v",
+        "--variant",
+        choices=ALLOWED_VARIANTS,
+        help="Multiplicative weight update variant to use for multiple workloads.",
+        type=str.lower,
+        default="default",
+    )
     args = parser.parse_args()
     config = vars(args)
     min_congestion_star_workload(
-        config.get("topology", None),
-        config.get("save_graph"),
-        config.get("leaf_counts"),
-        config.get("save_drive"),
+        topology=config.get("topology", None),
+        leaf_counts=config.get("leaf_counts"),
+        save_graph=config.get("save_graph"),
+        save_drive=config.get("save_drive"),
+        variant=config.get("variant"),
     )
