@@ -156,6 +156,8 @@ def update_weight(graph, min_graph, start_time, end_time, variant="default"):
             edge = graph.edges()[u, v]
             edge.update({"weight": edge.get("weight", 0) * (1 + MWU_FACTOR)})
         for u, values in min_graph.nodes(data=True):
+            if values.get("load", 0) == 0:
+                continue
             node = graph.nodes().get(u)
             node.update({"weight": node.get("weight", 0) * (1 + MWU_FACTOR)})
     elif variant == "bansal":
@@ -164,7 +166,11 @@ def update_weight(graph, min_graph, start_time, end_time, variant="default"):
             deno = RHO2 * values.get("capacity")
             for time in range(start_time, end_time + 1):
                 load_factor += exp((values.get("load")[time] * GAMMA) / deno)
-            values.update({"weight": (GAMMA * load_factor) / deno})
+            # Since min_cost_flow doesn't work on proper fraction weight
+            weight = (GAMMA * load_factor) / deno
+            if weight < 1:
+                weight = 0
+            values.update({"weight": weight})
 
 
 def update_load(graph, min_graph, start_time, end_time):
