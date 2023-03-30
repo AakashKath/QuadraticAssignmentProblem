@@ -150,6 +150,18 @@ def get_substrate_graphs(topology):
     return substrate_graphs
 
 
+def calculate_weight(values, start_time, end_time):
+    load_factor = 0
+    deno = RHO2 * values.get("capacity")
+    for time in range(start_time, end_time + 1):
+        load_factor += exp((values.get("load")[time] * GAMMA) / deno)
+    # Since min_cost_flow doesn't work on proper fraction weight
+    weight = (GAMMA * load_factor) / deno
+    if weight < 1:
+        weight = 0
+    return weight
+
+
 def update_weight(graph, min_graph, start_time, end_time, variant="default"):
     if variant == "default" and min_graph:
         for u, v, values in min_graph.edges(data=True):
@@ -161,16 +173,10 @@ def update_weight(graph, min_graph, start_time, end_time, variant="default"):
             node = graph.nodes().get(u)
             node.update({"weight": node.get("weight", 0) * (1 + MWU_FACTOR)})
     elif variant == "bansal":
-        for u, v, values in graph.edges(data=True):
-            load_factor = 0
-            deno = RHO2 * values.get("capacity")
-            for time in range(start_time, end_time + 1):
-                load_factor += exp((values.get("load")[time] * GAMMA) / deno)
-            # Since min_cost_flow doesn't work on proper fraction weight
-            weight = (GAMMA * load_factor) / deno
-            if weight < 1:
-                weight = 0
-            values.update({"weight": weight})
+        for _, _, values in graph.edges(data=True):
+            values.update({"weight": calculate_weight(values, start_time, end_time)})
+        for _, values in graph.nodes(data=True):
+            values.update({"weight": calculate_weight(values, start_time, end_time)})
 
 
 def update_load(graph, min_graph, start_time, end_time):
