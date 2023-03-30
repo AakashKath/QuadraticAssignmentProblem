@@ -27,7 +27,7 @@ from substrate import (
 from workload import generate_workload
 
 
-def add_sink_node(flow_graph, substrate_graph, source, node_demand):
+def add_sink_node(flow_graph, substrate_graph, source, node_demand, current_time):
     flow_graph.add_node("sink", demand=node_demand)
     substrate_nodes = dict(substrate_graph.nodes(data=True))
     for u in flow_graph.nodes():
@@ -38,12 +38,12 @@ def add_sink_node(flow_graph, substrate_graph, source, node_demand):
             data = substrate_nodes.get(source, {})
             data.update({"capacity": data.get("capacity", 1) - 1})
             # data.update({"capacity": 0}) # source-sink capacity set to 0 to avoid trivial path
-        data.update({"capacity": data.get("capacity", 0) - sum(data.get("load", [0]))})
+        data.update({"capacity": data.get("capacity", 0) - data["load"][current_time]})
         flow_graph.add_edge(u, "sink", **data)
     return flow_graph
 
 
-def generate_network_flow(graph, source, node_demand, edge_demand):
+def generate_network_flow(graph, source, node_demand, edge_demand, current_time):
     G = nx.DiGraph()
     for u, values in graph.nodes(data=True):
         if values.get("is_switch"):
@@ -54,7 +54,7 @@ def generate_network_flow(graph, source, node_demand, edge_demand):
         kwargs.update(
             {
                 "capacity": floor(
-                    (kwargs.get("capacity", 0) - sum(kwargs.get("load", [0])))
+                    (kwargs.get("capacity", 0) - kwargs["load"][current_time])
                     / edge_demand
                 )
             }
@@ -68,26 +68,25 @@ def generate_network_flow(graph, source, node_demand, edge_demand):
     return G
 
 
-def update_flow_graph(graph):
+def update_flow_graph(graph, source):
     for u, v, values in graph.edges(data=True):
         if v == "sink":
             graph.nodes().get(u).update(values)
     graph.remove_node("sink")
+    graph = nx.relabel_nodes(graph, {"source": source})
+    return graph
 
 
-def min_congestion(substrate_graph, flow, edge_demand):
-    min_cost = inf
-    min_graph = None
-    min_source = None
-    min_substrate_graph = substrate_graph
+def fetch_all_mappings(substrate_graph, flow, edge_demand, current_time):
+    all_mappings = list()
     for source in list(substrate_graph.nodes()):
         if substrate_graph.nodes().get(source).get("is_switch", False):
             continue
         network_flow_graph = generate_network_flow(
-            substrate_graph, source, -flow, edge_demand
+            substrate_graph, source, -flow, edge_demand, current_time
         )
         network_flow_graph = add_sink_node(
-            network_flow_graph, substrate_graph, source, flow
+            network_flow_graph, substrate_graph, source, flow, current_time
         )
         # if network_flow_graph.get_edge_data(source, "sink").get("capacity", 0)-1 >= flow:
         #     print("Encountered trivial case.")
@@ -95,16 +94,27 @@ def min_congestion(substrate_graph, flow, edge_demand):
         try:
             flow_dict = nx.min_cost_flow(network_flow_graph)
             flow_graph, cost = from_min_cost_flow(flow_dict, network_flow_graph)
-            if cost < min_cost:
-                min_cost = cost
-                min_graph = flow_graph
-                min_substrate_graph = network_flow_graph
-                min_source = source
+            flow_graph = update_flow_graph(flow_graph, source)
+            all_mappings.append((network_flow_graph, flow_graph, cost, source))
         except nx.exception.NetworkXUnfeasible:
             # No path found.
             pass
-    if min_graph:
-        min_graph = nx.relabel_nodes(min_graph, {"source": min_source})
+    return all_mappings
+
+
+def min_congestion(substrate_graph, flow, edge_demand, current_time):
+    min_cost = inf
+    min_graph = None
+    min_source = None
+    min_substrate_graph = substrate_graph
+    all_mappings = fetch_all_mappings(substrate_graph, flow, edge_demand, current_time)
+    for network_flow_graph, flow_graph, cost, source in all_mappings:
+        if cost < min_cost:
+            min_cost = cost
+            min_graph = flow_graph
+            min_substrate_graph = network_flow_graph
+            min_source = source
+    if min_substrate_graph:
         min_substrate_graph = nx.relabel_nodes(
             min_substrate_graph, {"source": f"source_{min_source}"}
         )
@@ -140,32 +150,34 @@ def get_substrate_graphs(topology):
     return substrate_graphs
 
 
-def update_weight(variant, element, values):
-    weight = element.get("weight")
-    if variant == "default":
-        weight = weight * (1 + MWU_FACTOR)
+def update_weight(graph, min_graph, start_time, end_time, variant="default"):
+    if variant == "default" and min_graph:
+        for u, v, values in min_graph.edges(data=True):
+            edge = graph.edges()[u, v]
+            edge.update({"weight": edge.get("weight", 0) * (1 + MWU_FACTOR)})
+        for u, values in min_graph.nodes(data=True):
+            node = graph.nodes().get(u)
+            node.update({"weight": node.get("weight", 0) * (1 + MWU_FACTOR)})
     elif variant == "bansal":
-        capacity = element.get("capacity")
-        load = element.get("load")
-        # weight = (gamma/B*ce)sum(exp(gamma*load(i, h)/B*ce))
-        weight = (GAMMA / RHO2 * capacity) * sum(
-            [exp(l / RHO2 * capacity) for l in load]
-        )
-    return weight
+        for u, v, values in graph.edges(data=True):
+            load_factor = 0
+            deno = RHO2 * values.get("capacity")
+            for time in range(start_time, end_time + 1):
+                load_factor += exp((values.get("load")[time] * GAMMA) / deno)
+            values.update({"weight": (GAMMA * load_factor) / deno})
 
 
-def update_substrate_graph(graph, min_graph, variant="default"):
+def update_load(graph, min_graph, start_time, end_time):
+    if not min_graph:
+        return
     for u, v, values in min_graph.edges(data=True):
-        if v == "sink":
-            element = graph.nodes().get(u)
-        else:
-            element = graph.edges()[u, v]
-        element.update(
-            {
-                "load": element.get("load") + [values.get("load")],
-                "weight": update_weight(variant, element, values),
-            }
-        )
+        for time in range(start_time, end_time + 1):
+            edge = graph.edges()[u, v]
+            edge.get("load")[time] += values.get("load", 0)
+    for u, values in min_graph.nodes(data=True):
+        for time in range(start_time, end_time + 1):
+            load = graph.nodes().get(u)["load"]
+            load[time] += values.get("load", 0)
 
 
 def solve_lp(graph, workload_map):
@@ -200,13 +212,34 @@ def solve_lp(graph, workload_map):
     status = model.solve()
 
 
+def fetch_congestion_value(graph):
+    congestion = 0
+    for _, _, values in graph.edges(data=True):
+        capacity = values.get("capacity")
+        for load in values.get("load"):
+            congestion = max(congestion, load / capacity)
+    for _, values in graph.nodes(data=True):
+        capacity = values.get("capacity")
+        for load in values.get("load"):
+            congestion = max(congestion, load / capacity)
+    return congestion
+
+
 def min_congestion_star_workload(
-    topology, leaf_counts, variant, save_graph, save_drive
+    topology, leaf_counts, variant, save_graph, save_drive, workload_details
 ):
+    congestions = list()
     substrate_graphs = get_substrate_graphs(topology)
     folder_path = (
         f"figures/{datetime.now().strftime('%Y_%m_%d')}" if save_graph else None
     )
+    if not (leaf_counts or workload_details):
+        print("No workload info found. Exiting...")
+        return
+    if not workload_details:
+        workload_details = [(0, 1, lc) for lc in leaf_counts]
+    workload_details.sort()
+    algo_end_time = max([t for _, t, _ in workload_details]) + 1
     for title, graph in substrate_graphs:
         added_flows = list()
         graph_path = (
@@ -214,27 +247,46 @@ def min_congestion_star_workload(
             if folder_path
             else None
         )
+        for u in graph.nodes():
+            graph.nodes().get(u).update({"load": [0] * algo_end_time})
+        for u, v in graph.edges():
+            graph.edges()[u, v].update({"load": [0] * algo_end_time})
         drawing = DrawGraphs(graph, with_labels=True, path=graph_path)
-        for i, lc in enumerate(leaf_counts):
-            # Hard-coding workload graph, as star workload is trivial to visualize
-            # workload_graph = generate_workload(edge_demand=1, node_count=lc)
-            # flow = len(workload_graph.nodes()) - 1
-            # edge_demand = list(nx.get_edge_attributes(workload_graph, "weight").values())[0]
-            flow = lc
-            edge_demand = 1
-            path = f"{graph_path}_{i}_{flow}" if graph_path else None
-            min_substrate_graph, min_graph, cost, source = min_congestion(
-                graph.copy(), flow, edge_demand
-            )
-            save_flow_details(min_substrate_graph, min_graph, flow, cost, path)
-            if min_graph:
-                added_flows.append(flow)
-                drawing.add_flow(min_graph, source)
-                update_substrate_graph(graph, min_graph, variant=variant)
-            else:
-                print("Couldn't fit workload in substrate graph.")
+        for current_time in range(algo_end_time):
+            min_graph = None
+            # workloads_to_remove = [
+            #     (s, t, l) for s, t, l in workload_details if t == current_time
+            # ]
+            # if workloads_to_remove:
+            #     drawing.remove_flow()
+            workloads_to_map = [
+                (s, t, l) for s, t, l in workload_details if s == current_time
+            ]
+            if not workloads_to_map:
+                continue
+            for i, (start_time, end_time, lc) in enumerate(workloads_to_map):
+                update_weight(graph, min_graph, start_time, end_time, variant)
+                # Hard-coding workload graph, as star workload is trivial to visualize
+                # workload_graph = generate_workload(edge_demand=1, node_count=lc)
+                # flow = len(workload_graph.nodes()) - 1
+                # edge_demand = list(nx.get_edge_attributes(workload_graph, "weight").values())[0]
+                flow = lc
+                edge_demand = 1
+                path = f"{graph_path}_{i}_{flow}" if graph_path else None
+                min_substrate_graph, min_graph, cost, source = min_congestion(
+                    graph.copy(), flow, edge_demand, current_time
+                )
+                save_flow_details(min_substrate_graph, min_graph, flow, cost, path)
+                if min_graph:
+                    added_flows.append(flow)
+                    drawing.add_flow(min_graph, source)
+                    update_load(graph, min_graph, start_time, end_time)
+                else:
+                    print("Couldn't fit workload in substrate graph.")
+        congestions.append(fetch_congestion_value(graph))
         drawing.add_title(title=f"Flow: {added_flows}")
         drawing.draw()
+    print(congestions)
 
     if save_drive:
         folder_id = get_google_drive_folder_id(topology)
@@ -268,6 +320,13 @@ if __name__ == "__main__":
         type=str.lower,
         default="default",
     )
+    parser.add_argument(
+        "-wd",
+        "--workload_details",
+        nargs="+",
+        help="Details of incoming workload, (start_time, end_time, leaf_count)",
+        type=lambda a: tuple(map(int, a.split(","))),
+    )
     args = parser.parse_args()
     config = vars(args)
     min_congestion_star_workload(
@@ -276,4 +335,5 @@ if __name__ == "__main__":
         save_graph=config.get("save_graph"),
         save_drive=config.get("save_drive"),
         variant=config.get("variant"),
+        workload_details=config.get("workload_details"),
     )
