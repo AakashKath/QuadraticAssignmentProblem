@@ -1,5 +1,5 @@
 ALLOWED_TOPOLOGIES = ["internet", "clos", "bcube", "xpander", "random"]
-ALLOWED_VARIANTS = ["default", "bansal"]
+ALLOWED_VARIANTS = ["default", "online", "offline"]
 MWU_FACTOR = 0.5
 GAMMA = 0.5
 RHO2 = 1

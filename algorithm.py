@@ -172,7 +172,7 @@ def update_weight(graph, min_graph, start_time, end_time, variant="default"):
                 continue
             node = graph.nodes().get(u)
             node.update({"weight": node.get("weight", 0) * (1 + MWU_FACTOR)})
-    elif variant == "bansal":
+    elif variant == "online":
         for _, _, values in graph.edges(data=True):
             values.update({"weight": calculate_weight(values, start_time, end_time)})
         for _, values in graph.nodes(data=True):
@@ -192,36 +192,54 @@ def update_load(graph, min_graph, start_time, end_time):
             load[time] += values.get("load", 0)
 
 
-def solve_lp(graph, workload_map):
+def solve_lp(graph, workload_map, algo_end_time):
     obj = list()
     variables = dict()
     model = LpProblem(name="workload_mapping", sense=LpMaximize)
+    for workload_no, all_mappings in workload_map:
+        mapping_expression = 0
+        for mapping_idx, mapping in enumerate(all_mappings):
+            e_var = LpVariable(
+                name=f"mapping_{workload_no}_{mapping_idx}",
+                lowBound=0,
+                upBound=1,
+                cat="Integer",
+            )
+            obj.append(e_var)
+            variables.update({f"mapping_{workload_no}_{mapping_idx}": e_var})
+            mapping_expression += e_var
+        model += (mapping_expression == 1, f"cmap_{workload_no}_{mapping_idx}")
     for u, v, values in graph.edges(data=True):
-        e_var = LpVariable(name=f"{u}-{v}", lowBound=0, cat="Integer")
-        variables.update({f"{u}-{v}": e_var})
-        obj.append(-values.get("capacity", 0) * e_var)
+        mapping_expression = 0
+        for workload_no, all_mappings in workload_map:
+            for mapping_idx, mapping in enumerate(all_mappings):
+                try:
+                    mapping_expression += mapping.edges()[u, v]["load"] * variables.get(
+                        f"mapping_{workload_no}_{mapping_idx}"
+                    )
+                except:
+                    pass
+        model += (mapping_expression <= values.get("capacity"), f"edge_{u}_{v}")
     for u, values in graph.nodes(data=True):
-        n_var = LpVariable(name=f"{u}", lowBound=0, cat="Integer")
-        variables.update({f"{u}": n_var})
-        obj.append(-values.get("capacity", 0) * n_var)
-    for workload, all_mappings in workload_map:
-        zi = LpVariable(name=f"z_{workload}", lowBound=0, cat="Integer")
-        variables.update({f"z_{workload}": zi})
-        obj.append(zi)
-        for idx, mapping in enumerate(all_mappings):
-            mapping_expression = 0
-            for u, values in mapping.nodes(data=True):
-                if values.get("load", 0) > 0:
-                    mapping_expression += values.get("load") * variables.get(f"{u}")
-            for u, v, values in mapping.edges(data=True):
-                if values.get("load", 0) > 0:
-                    var = variables.get(f"{u}-{v}")
-                    if var is None:
-                        var = variables.get(f"{v}-{u}")
-                    mapping_expression += values.get("load") * var
-            model += (mapping_expression >= zi, f"c_{workload}_{idx}")
+        mapping_expression = 0
+        for workload_no, all_mappings in workload_map:
+            for mapping_idx, mapping in enumerate(all_mappings):
+                try:
+                    mapping_expression += mapping.nodes()[u]["load"] * variables.get(
+                        f"mapping_{workload_no}_{mapping_idx}"
+                    )
+                except:
+                    pass
+        model += (mapping_expression <= values.get("capacity"), f"node_{u}")
     model += lpSum(obj)
-    status = model.solve()
+    model.solve()
+
+    for var in model.variables():
+        if var.value() > 0:
+            workload_no, mapping_idx = list(map(int, var.name.split("_")[1:]))
+            update_load(
+                graph, workload_map[workload_no][1][mapping_idx], 0, algo_end_time - 1
+            )
 
 
 def fetch_congestion_value(graph):
@@ -253,17 +271,23 @@ def min_congestion_star_workload(
     workload_details.sort()
     algo_end_time = max([t for _, t, _ in workload_details]) + 1
     for title, graph in substrate_graphs:
-        added_flows = list()
-        graph_path = (
-            f"{folder_path}/{title}_{datetime.now().strftime('%H_%M_%S')}"
-            if folder_path
-            else None
-        )
         for u in graph.nodes():
             graph.nodes().get(u).update({"load": [0] * algo_end_time})
         for u, v in graph.edges():
             graph.edges()[u, v].update({"load": [0] * algo_end_time})
-        drawing = DrawGraphs(graph, with_labels=True, path=graph_path)
+
+        if variant == "offline":
+            all_mappings = list()
+        else:
+            added_flows = list()
+            graph_path = (
+                f"{folder_path}/{title}_{datetime.now().strftime('%H_%M_%S')}"
+                if folder_path
+                else None
+            )
+            # Drawing removed since it requires a lot more tweaks
+            # drawing = DrawGraphs(graph, with_labels=True, path=graph_path)
+
         for current_time in range(algo_end_time):
             min_graph = None
             # workloads_to_remove = [
@@ -277,7 +301,6 @@ def min_congestion_star_workload(
             if not workloads_to_map:
                 continue
             for i, (start_time, end_time, lc) in enumerate(workloads_to_map):
-                update_weight(graph, min_graph, start_time, end_time, variant)
                 # Hard-coding workload graph, as star workload is trivial to visualize
                 # workload_graph = generate_workload(edge_demand=1, node_count=lc)
                 # flow = len(workload_graph.nodes()) - 1
@@ -285,19 +308,37 @@ def min_congestion_star_workload(
                 flow = lc
                 edge_demand = 1
                 path = f"{graph_path}_{i}_{flow}" if graph_path else None
-                min_substrate_graph, min_graph, cost, source = min_congestion(
-                    graph.copy(), flow, edge_demand, current_time
-                )
-                save_flow_details(min_substrate_graph, min_graph, flow, cost, path)
-                if min_graph:
-                    added_flows.append(flow)
-                    drawing.add_flow(min_graph, source)
-                    update_load(graph, min_graph, start_time, end_time)
+                if variant == "offline":
+                    all_mappings.append(
+                        (
+                            i,
+                            [
+                                flow_graph
+                                for _, flow_graph, _, _ in fetch_all_mappings(
+                                    graph.copy(), flow, edge_demand, current_time
+                                )
+                            ],
+                        )
+                    )
                 else:
-                    print("Couldn't fit workload in substrate graph.")
+                    update_weight(graph, min_graph, start_time, end_time, variant)
+                    min_substrate_graph, min_graph, cost, source = min_congestion(
+                        graph.copy(), flow, edge_demand, current_time
+                    )
+                    save_flow_details(min_substrate_graph, min_graph, flow, cost, path)
+                    if min_graph:
+                        added_flows.append(flow)
+                        # drawing.add_flow(min_graph, source)
+                        update_load(graph, min_graph, start_time, end_time)
+                    else:
+                        print("Couldn't fit workload in substrate graph.")
+        if variant == "offline":
+            solve_lp(graph, all_mappings, algo_end_time)
+        else:
+            pass
+            # drawing.add_title(title=f"Flow: {added_flows}")
+            # drawing.draw()
         congestions.append(fetch_congestion_value(graph))
-        drawing.add_title(title=f"Flow: {added_flows}")
-        drawing.draw()
     print(congestions)
 
     if save_drive:
