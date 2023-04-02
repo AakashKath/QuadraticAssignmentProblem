@@ -307,7 +307,6 @@ def min_congestion_star_workload(
                 # edge_demand = list(nx.get_edge_attributes(workload_graph, "weight").values())[0]
                 flow = lc
                 edge_demand = 1
-                path = f"{graph_path}_{i}_{flow}" if graph_path else None
                 if variant == "offline":
                     all_mappings.append(
                         (
@@ -321,6 +320,7 @@ def min_congestion_star_workload(
                         )
                     )
                 else:
+                    path = f"{graph_path}_{i}_{flow}" if graph_path else None
                     update_weight(graph, min_graph, start_time, end_time, variant)
                     min_substrate_graph, min_graph, cost, source = min_congestion(
                         graph.copy(), flow, edge_demand, current_time
