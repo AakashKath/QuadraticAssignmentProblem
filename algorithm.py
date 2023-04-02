@@ -286,7 +286,7 @@ def min_congestion_star_workload(
                 else None
             )
             # Drawing removed since it requires a lot more tweaks
-            # drawing = DrawGraphs(graph, with_labels=True, path=graph_path)
+            drawing = DrawGraphs(graph, with_labels=True, path=graph_path)
 
         for current_time in range(algo_end_time):
             min_graph = None
@@ -328,7 +328,7 @@ def min_congestion_star_workload(
                     save_flow_details(min_substrate_graph, min_graph, flow, cost, path)
                     if min_graph:
                         added_flows.append(flow)
-                        # drawing.add_flow(min_graph, source)
+                        drawing.add_flow(min_graph, source)
                         update_load(graph, min_graph, start_time, end_time)
                     else:
                         print("Couldn't fit workload in substrate graph.")
@@ -336,8 +336,8 @@ def min_congestion_star_workload(
             solve_lp(graph, all_mappings, algo_end_time)
         else:
             pass
-            # drawing.add_title(title=f"Flow: {added_flows}")
-            # drawing.draw()
+            drawing.add_title(title=f"Flow: {added_flows}")
+            drawing.draw()
         congestions.append(fetch_congestion_value(graph))
     print(congestions)
 

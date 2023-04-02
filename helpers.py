@@ -150,9 +150,9 @@ class DrawGraphs:
 
     def add_flow(self, flow_graph, source):
         color = self.cmap(self.flow_counter)
-        updated_details = list(flow_graph.edges())
         self.graph.nodes().get(source).update({"color": color})
-        frames = len(flow_graph.edges())
+        updated_details = list(flow_graph.edges()) + [(source, "sink")]
+        frames = len(flow_graph.edges()) + 1
         if self.path:
             for frame in range(frames):
                 self.__add_flow(updated_details, color, frame)
