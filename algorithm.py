@@ -1,4 +1,6 @@
 import argparse
+import copy
+import csv
 import networkx as nx
 import os
 import shutil
@@ -140,9 +142,9 @@ def get_substrate_graphs(topology):
     elif topology == "clos":
         substrate_graphs.append((f"clos", generate_clos_topology_graph()))
     elif topology == "bcube":
-        substrate_graphs.append((f"bcube", generate_bcube_topology_graph()))
+        substrate_graphs.append((f"bcube", generate_bcube_topology_graph(4, 3)))
     elif topology == "xpander":
-        substrate_graphs.append((f"xpander", generate_xpander_topology_graph()))
+        substrate_graphs.append((f"xpander", generate_xpander_topology_graph(30, 4, 3)))
     elif topology == "random":
         substrate_graphs.append((f"random", generate_random_graph()))
     else:
@@ -196,7 +198,7 @@ def solve_lp(graph, workload_map, algo_end_time):
     obj = list()
     variables = dict()
     model = LpProblem(name="workload_mapping", sense=LpMaximize)
-    for workload_no, all_mappings in workload_map:
+    for workload_no, all_mappings, _ in workload_map:
         mapping_expression = 0
         for mapping_idx, mapping in enumerate(all_mappings):
             e_var = LpVariable(
@@ -211,7 +213,7 @@ def solve_lp(graph, workload_map, algo_end_time):
         model += (mapping_expression == 1, f"cmap_{workload_no}_{mapping_idx}")
     for u, v, values in graph.edges(data=True):
         mapping_expression = 0
-        for workload_no, all_mappings in workload_map:
+        for workload_no, all_mappings, _ in workload_map:
             for mapping_idx, mapping in enumerate(all_mappings):
                 try:
                     mapping_expression += mapping.edges()[u, v]["load"] * variables.get(
@@ -222,7 +224,7 @@ def solve_lp(graph, workload_map, algo_end_time):
         model += (mapping_expression <= values.get("capacity"), f"edge_{u}_{v}")
     for u, values in graph.nodes(data=True):
         mapping_expression = 0
-        for workload_no, all_mappings in workload_map:
+        for workload_no, all_mappings, _ in workload_map:
             for mapping_idx, mapping in enumerate(all_mappings):
                 try:
                     mapping_expression += mapping.nodes()[u]["load"] * variables.get(
@@ -234,12 +236,15 @@ def solve_lp(graph, workload_map, algo_end_time):
     model += lpSum(obj)
     model.solve()
 
+    added_flows = list()
     for var in model.variables():
         if var.value() > 0:
             workload_no, mapping_idx = list(map(int, var.name.split("_")[1:]))
             update_load(
                 graph, workload_map[workload_no][1][mapping_idx], 0, algo_end_time - 1
             )
+            added_flows.append(workload_map[workload_no][2])
+    return added_flows
 
 
 def fetch_congestion_value(graph):
@@ -258,7 +263,11 @@ def fetch_congestion_value(graph):
 def min_congestion_star_workload(
     topology, leaf_counts, variant, save_graph, save_drive, workload_details
 ):
-    congestions = list()
+    fieldnames = ["topology", "variant", "added_flows", "congestion"]
+    with open(f"dataset/{topology}.csv", "w") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+    # congestions = list()
     substrate_graphs = get_substrate_graphs(topology)
     folder_path = (
         f"figures/{datetime.now().strftime('%Y_%m_%d')}" if save_graph else None
@@ -270,76 +279,92 @@ def min_congestion_star_workload(
         workload_details = [(0, 1, lc) for lc in leaf_counts]
     workload_details.sort()
     algo_end_time = max([t for _, t, _ in workload_details]) + 1
-    for title, graph in substrate_graphs:
-        for u in graph.nodes():
-            graph.nodes().get(u).update({"load": [0] * algo_end_time})
-        for u, v in graph.edges():
-            graph.edges()[u, v].update({"load": [0] * algo_end_time})
+    for title, sub_graph in substrate_graphs:
+        for variant in ["offline", "online", "default"]:
+            graph = copy.deepcopy(sub_graph)
+            for u in graph.nodes():
+                graph.nodes().get(u).update({"load": [0] * algo_end_time})
+            for u, v in graph.edges():
+                graph.edges()[u, v].update({"load": [0] * algo_end_time})
 
-        if variant == "offline":
-            all_mappings = list()
-        else:
-            added_flows = list()
-            graph_path = (
-                f"{folder_path}/{title}_{datetime.now().strftime('%H_%M_%S')}"
-                if folder_path
-                else None
-            )
-            # Drawing removed since it requires a lot more tweaks
-            drawing = DrawGraphs(graph, with_labels=True, path=graph_path)
+            if variant == "offline":
+                all_mappings = list()
+            else:
+                added_flows = list()
+                graph_path = (
+                    f"{folder_path}/{title}_{datetime.now().strftime('%H_%M_%S')}"
+                    if folder_path
+                    else None
+                )
+                # Drawing removed since it requires a lot more tweaks
+                drawing = DrawGraphs(graph, with_labels=True, path=graph_path)
 
-        for current_time in range(algo_end_time):
-            min_graph = None
-            # workloads_to_remove = [
-            #     (s, t, l) for s, t, l in workload_details if t == current_time
-            # ]
-            # if workloads_to_remove:
-            #     drawing.remove_flow()
-            workloads_to_map = [
-                (s, t, l) for s, t, l in workload_details if s == current_time
-            ]
-            if not workloads_to_map:
-                continue
-            for i, (start_time, end_time, lc) in enumerate(workloads_to_map):
-                # Hard-coding workload graph, as star workload is trivial to visualize
-                # workload_graph = generate_workload(edge_demand=1, node_count=lc)
-                # flow = len(workload_graph.nodes()) - 1
-                # edge_demand = list(nx.get_edge_attributes(workload_graph, "weight").values())[0]
-                flow = lc
-                edge_demand = 1
-                if variant == "offline":
-                    all_mappings.append(
-                        (
-                            i,
-                            [
-                                flow_graph
-                                for _, flow_graph, _, _ in fetch_all_mappings(
-                                    graph.copy(), flow, edge_demand, current_time
-                                )
-                            ],
+            for current_time in range(algo_end_time):
+                min_graph = None
+                # workloads_to_remove = [
+                #     (s, t, l) for s, t, l in workload_details if t == current_time
+                # ]
+                # if workloads_to_remove:
+                #     drawing.remove_flow()
+                workloads_to_map = [
+                    (s, t, l) for s, t, l in workload_details if s == current_time
+                ]
+                if not workloads_to_map:
+                    continue
+                for i, (start_time, end_time, lc) in enumerate(workloads_to_map):
+                    print(topology, variant, i)
+                    # Hard-coding workload graph, as star workload is trivial to visualize
+                    # workload_graph = generate_workload(edge_demand=1, node_count=lc)
+                    # flow = len(workload_graph.nodes()) - 1
+                    # edge_demand = list(nx.get_edge_attributes(workload_graph, "weight").values())[0]
+                    flow = lc
+                    edge_demand = 1
+                    if variant == "offline":
+                        all_mappings.append(
+                            (
+                                i,
+                                [
+                                    flow_graph
+                                    for _, flow_graph, _, _ in fetch_all_mappings(
+                                        graph.copy(), flow, edge_demand, current_time
+                                    )
+                                ],
+                                flow,
+                            )
                         )
-                    )
-                else:
-                    path = f"{graph_path}_{i}_{flow}" if graph_path else None
-                    update_weight(graph, min_graph, start_time, end_time, variant)
-                    min_substrate_graph, min_graph, cost, source = min_congestion(
-                        graph.copy(), flow, edge_demand, current_time
-                    )
-                    save_flow_details(min_substrate_graph, min_graph, flow, cost, path)
-                    if min_graph:
-                        added_flows.append(flow)
-                        drawing.add_flow(min_graph, source)
-                        update_load(graph, min_graph, start_time, end_time)
                     else:
-                        print("Couldn't fit workload in substrate graph.")
-        if variant == "offline":
-            solve_lp(graph, all_mappings, algo_end_time)
-        else:
-            pass
-            drawing.add_title(title=f"Flow: {added_flows}")
-            drawing.draw()
-        congestions.append(fetch_congestion_value(graph))
-    print(congestions)
+                        path = f"{graph_path}_{i}_{flow}" if graph_path else None
+                        update_weight(graph, min_graph, start_time, end_time, variant)
+                        min_substrate_graph, min_graph, cost, source = min_congestion(
+                            graph.copy(), flow, edge_demand, current_time
+                        )
+                        save_flow_details(
+                            min_substrate_graph, min_graph, flow, cost, path
+                        )
+                        if min_graph:
+                            added_flows.append(flow)
+                            drawing.add_flow(min_graph, source)
+                            update_load(graph, min_graph, start_time, end_time)
+                        else:
+                            print("Couldn't fit workload in substrate graph.")
+            if variant == "offline":
+                added_flows = solve_lp(graph, all_mappings, algo_end_time)
+            else:
+                pass
+                drawing.add_title(title=f"Flow: {added_flows}")
+                drawing.draw()
+            # congestions.append(fetch_congestion_value(graph))
+            with open(f"dataset/{topology}.csv", "a") as csv_file:
+                writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+                writer.writerow(
+                    {
+                        "topology": topology,
+                        "variant": variant,
+                        "added_flows": added_flows,
+                        "congestion": fetch_congestion_value(graph),
+                    }
+                )
+    # print(congestions)
 
     if save_drive:
         folder_id = get_google_drive_folder_id(topology)
@@ -382,11 +407,12 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     config = vars(args)
-    min_congestion_star_workload(
-        topology=config.get("topology", None),
-        leaf_counts=config.get("leaf_counts"),
-        save_graph=config.get("save_graph"),
-        save_drive=config.get("save_drive"),
-        variant=config.get("variant"),
-        workload_details=config.get("workload_details"),
-    )
+    for topology in ["xpander", "clos", "bcube"]:
+        min_congestion_star_workload(
+            topology=topology,
+            leaf_counts=config.get("leaf_counts"),
+            save_graph=config.get("save_graph"),
+            save_drive=config.get("save_drive"),
+            variant=config.get("variant"),
+            workload_details=config.get("workload_details"),
+        )
